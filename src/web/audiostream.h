@@ -37,17 +37,14 @@ class AudioStreamManager;
 class AudioStreamManager : public SampleSink
 {
 public:
-	AudioStreamManager(
-			unsigned int samplerate = DEFAULT_SINK_SAMPLE_RATE,
-			unsigned int channels = DEFAULT_SINK_CHANNELS,
-			const string &subdevice = "");
+	AudioStreamManager();
 	virtual ~AudioStreamManager();
 	static SampleSink* factory() {
 		return new AudioStreamManager();
 	}
 
-	bool open();
-	void close();
+	bool start();
+	void stop();
 
 	void setSamplerate(unsigned int samplerate);
 	void setChannels(unsigned int channels);

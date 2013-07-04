@@ -16,30 +16,28 @@
 #define PLAYBACK_STREAM_NAME	"Playback"
 #define CAPTURE_STREAM_NAME		"Capture"
 
-PulseAudioSink::PulseAudioSink(unsigned int samplerate,
-		unsigned int channels, const string &subdevice) :
-		SampleSink(samplerate, channels, subdevice)
+PulseAudioSink::PulseAudioSink() : SampleSink()
 {
 	/* Default sample spec */
 	ss.format = PA_SAMPLE_S16LE;
-	ss.rate = samplerate;
-	ss.channels = channels;
+	ss.rate = _samplerate;
+	ss.channels = _channels;
 	pa = NULL;
 }
 
 PulseAudioSink::~PulseAudioSink()
 {
-	close();
+	stop();
 }
 
-bool PulseAudioSink::open()
+bool PulseAudioSink::start()
 {
 	const char *sink_name = NULL;
 	int error;
 
 	/* Calling again re-opens */
 	if (pa != NULL)
-		close();
+		stop();
 
 	if (_subdevice.length() > 0)
 		sink_name = _subdevice.c_str();
@@ -55,7 +53,7 @@ bool PulseAudioSink::open()
 	return true;
 }
 
-void PulseAudioSink::close()
+void PulseAudioSink::stop()
 {
 	if (pa == NULL)
 		return;
@@ -102,30 +100,28 @@ void PulseAudioSink::push(short *samples, unsigned int nframes)
 
 /*******************/
 
-PulseAudioSource::PulseAudioSource(unsigned int samplerate,
-		unsigned int channels, const string &subdevice) :
-		SampleSource(samplerate, channels, subdevice)
+PulseAudioSource::PulseAudioSource() : SampleSource()
 {
 	/* Default sample spec */
 	ss.format = PA_SAMPLE_S16LE;
-	ss.rate = samplerate;
-	ss.channels = channels;
+	ss.rate = _samplerate;
+	ss.channels = _channels;
 	pa = NULL;
 }
 
 PulseAudioSource::~PulseAudioSource()
 {
-	close();
+	stop();
 }
 
-bool PulseAudioSource::open()
+bool PulseAudioSource::start()
 {
 	const char *source_name = NULL;
 	int error;
 
 	/* Calling again re-opens */
 	if (pa != NULL)
-		close();
+		stop();
 
 	if (_subdevice.length() > 0)
 		source_name = _subdevice.c_str();
@@ -141,7 +137,7 @@ bool PulseAudioSource::open()
 	return true;
 }
 
-void PulseAudioSource::close()
+void PulseAudioSource::stop()
 {
 	if (pa == NULL)
 		return;

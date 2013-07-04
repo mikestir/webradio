@@ -12,25 +12,22 @@
 #include <string>
 
 #include <rtl-sdr.h>
+#include <pthread.h>
 
 #include "tuner.h"
+
+#define RTLSDR_ASYNC_READ
 
 using namespace std;
 
 class RtlSdrTuner : public Tuner
 {
 public:
-	RtlSdrTuner(
-			unsigned int samplerate = DEFAULT_TUNER_SAMPLE_RATE,
-			unsigned int channels = DEFAULT_TUNER_CHANNELS,
-			const string &subdevice = "rtl=0");
+	RtlSdrTuner();
 	virtual ~RtlSdrTuner();
-	static Tuner* factory() {
-		return new RtlSdrTuner();
-	}
 
-	bool open();
-	void close();
+	bool start();
+	void stop();
 
 	void setSamplerate(unsigned int samplerate);
 	void setChannels(unsigned int channels);
@@ -38,13 +35,27 @@ public:
 	void setCentreFrequency(unsigned int hz);
 	void setOffsetPPM(int ppm);
 	void setAGC(bool agc);
-	void setGainDB(int gain);
+	float gainDB();
+	void setGainDB(float gain);
 
 	unsigned int pull(float *samples, unsigned int maxframes);
+
 private:
-	unsigned int deviceCount;
-	vector<string> deviceNames;
-	rtlsdr_dev_t *dev;
+	unsigned int	deviceCount;
+	vector<string>	deviceNames;
+	rtlsdr_dev_t*	dev;
+
+#ifdef RTLSDR_ASYNC_READ
+	static void* thread_func(void *arg);
+	static void callback(unsigned char *buf, unsigned int len, void *arg);
+
+	vector<float>	buffer; // FIXME: Make a fast FIFO template class
+	unsigned int	head;
+	unsigned int	tail;
+
+	pthread_t		thread;
+	pthread_mutex_t	mutex;
+#endif
 };
 
 

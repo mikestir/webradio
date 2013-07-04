@@ -19,21 +19,15 @@ using namespace std;
 class SampleSource
 {
 public:
-	SampleSource(
-			unsigned int samplerate = DEFAULT_SOURCE_SAMPLE_RATE,
-			unsigned int channels = DEFAULT_SOURCE_CHANNELS,
-			const string &subdevice = "") :
-			_samplerate(samplerate),
-			_channels(channels),
-			_subdevice(subdevice),
+	SampleSource() :
+			_samplerate(DEFAULT_SOURCE_SAMPLE_RATE),
+			_channels(DEFAULT_SOURCE_CHANNELS),
+			_subdevice(""),
 			_subdevices() {}
 	virtual ~SampleSource() {}
-	static SampleSource* factory() {
-		return new SampleSource();
-	}
 
-	virtual bool open() { return false; };
-	virtual void close() {};
+	virtual bool start() { return false; };
+	virtual void stop() {};
 
 	unsigned int samplerate() const { return _samplerate; }
 	virtual void setSamplerate(unsigned int samplerate) {}

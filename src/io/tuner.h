@@ -20,11 +20,8 @@ using namespace std;
 class Tuner : public SampleSource
 {
 public:
-	Tuner(
-			unsigned int samplerate = DEFAULT_TUNER_SAMPLE_RATE,
-			unsigned int channels = DEFAULT_TUNER_CHANNELS,
-			const string &subdevice = "") :
-			SampleSource(samplerate, channels, subdevice),
+	Tuner() :
+			SampleSource(),
 			_centreFrequency(100000000),
 			_offsetPPM(0),
 			_AGC(true),
@@ -40,14 +37,14 @@ public:
 	virtual void setOffsetPPM(int ppm) {}
 	bool AGC() const { return _AGC; }
 	virtual void setAGC(bool agc) {}
-	int gainDB() const { return _gainDB; }
-	virtual void setGainDB(int gain) {}
+	virtual float gainDB() const { return _gainDB; }
+	virtual void setGainDB(float gain) {}
 
 protected:
 	unsigned int	_centreFrequency;
 	int				_offsetPPM;
 	bool			_AGC;
-	int				_gainDB;
+	float			_gainDB;
 };
 
 #endif /* TUNER_H_ */

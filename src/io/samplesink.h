@@ -19,21 +19,15 @@ using namespace std;
 class SampleSink
 {
 public:
-	SampleSink(
-			unsigned int samplerate = DEFAULT_SINK_SAMPLE_RATE,
-			unsigned int channels = DEFAULT_SINK_CHANNELS,
-			const string &subdevice = "") :
-			_samplerate(samplerate),
-			_channels(channels),
-			_subdevice(subdevice),
+	SampleSink() :
+			_samplerate(DEFAULT_SINK_SAMPLE_RATE),
+			_channels(DEFAULT_SINK_CHANNELS),
+			_subdevice(""),
 			_subdevices() {}
 	virtual ~SampleSink() {}
-	static SampleSink* factory() {
-		return new SampleSink();
-	}
 
-	virtual bool open() { return false; };
-	virtual void close() {};
+	virtual bool start() { return false; };
+	virtual void stop() {};
 
 	unsigned int samplerate() const { return _samplerate; }
 	virtual void setSamplerate(unsigned int samplerate) {}

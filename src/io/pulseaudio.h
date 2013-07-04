@@ -22,17 +22,11 @@ using namespace std;
 class PulseAudioSource : public SampleSource
 {
 public:
-	PulseAudioSource(
-			unsigned int samplerate = DEFAULT_SOURCE_SAMPLE_RATE,
-			unsigned int channels = DEFAULT_SOURCE_CHANNELS,
-			const string &subdevice = "");
+	PulseAudioSource();
 	~PulseAudioSource();
-	static SampleSource* factory() {
-		return new PulseAudioSource();
-	}
 
-	bool open();
-	void close();
+	bool start();
+	void stop();
 
 	void setSamplerate(unsigned int samplerate);
 	void setChannels(unsigned int channels);
@@ -47,17 +41,14 @@ private:
 class PulseAudioSink : public SampleSink
 {
 public:
-	PulseAudioSink(
-			unsigned int samplerate = DEFAULT_SINK_SAMPLE_RATE,
-			unsigned int channels = DEFAULT_SINK_CHANNELS,
-			const string &subdevice = "");
+	PulseAudioSink();
 	~PulseAudioSink();
 	static SampleSink* factory() {
 		return new PulseAudioSink();
 	}
 
-	bool open();
-	void close();
+	bool start();
+	void stop();
 
 	void setSamplerate(unsigned int samplerate);
 	void setChannels(unsigned int channels);

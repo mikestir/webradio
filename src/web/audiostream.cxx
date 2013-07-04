@@ -20,10 +20,7 @@
 /*! Global mountpoint map */
 static map<string,AudioStreamManager*> streams;
 
-AudioStreamManager::AudioStreamManager(
-		unsigned int samplerate,
-		unsigned int channels,
-		const string &subdevice) : SampleSink(samplerate, channels, subdevice)
+AudioStreamManager::AudioStreamManager() : SampleSink()
 {
 	pthread_mutex_init(&mutex, NULL);
 	encoder = NULL;
@@ -32,21 +29,21 @@ AudioStreamManager::AudioStreamManager(
 AudioStreamManager::~AudioStreamManager()
 {
 	if (encoder)
-		close();
+		stop();
 	pthread_mutex_destroy(&mutex);
 }
 
-bool AudioStreamManager::open()
+bool AudioStreamManager::start()
 {
 	if (encoder != NULL)
-		close();
+		stop();
 
 	encoder = new MP3Encoder(_samplerate, _channels);
 	streams[_subdevice] = this;
 	return true;
 }
 
-void AudioStreamManager::close()
+void AudioStreamManager::stop()
 {
 	if (encoder == NULL)
 		return;
@@ -159,7 +156,9 @@ HttpRequestHandler* AudioStreamHandler::factory()
 
 void AudioStreamHandler::push(const vector<char> &data)
 {
-	write(pipefd[1], data.data(), data.size());
+	if (write(pipefd[1], data.data(), data.size()) < (int)data.size()) {
+		LOG_ERROR("pipe write error\n");
+	}
 }
 
 unsigned short AudioStreamHandler::handleRequest(const string &method, const string &path,
