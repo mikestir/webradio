@@ -16,117 +16,37 @@
 #define PLAYBACK_STREAM_NAME	"Playback"
 #define CAPTURE_STREAM_NAME		"Capture"
 
-PulseAudioSink::PulseAudioSink() : SampleSink()
+PulseAudioSource::PulseAudioSource(const string &name) :
+	SampleSource(name, "PulseAudioSource")
 {
 	/* Default sample spec */
-	ss.format = PA_SAMPLE_S16LE;
-	ss.rate = _samplerate;
-	ss.channels = _channels;
-	pa = NULL;
-}
-
-PulseAudioSink::~PulseAudioSink()
-{
-	stop();
-}
-
-bool PulseAudioSink::start()
-{
-	const char *sink_name = NULL;
-	int error;
-
-	/* Calling again re-opens */
-	if (pa != NULL)
-		stop();
-
-	if (_subdevice.length() > 0)
-		sink_name = _subdevice.c_str();
-
-	LOG_INFO("Opening device %s for playback\n", sink_name);
-	pa = pa_simple_new(NULL, APP_NAME,
-		PA_STREAM_PLAYBACK, sink_name,
-		PLAYBACK_STREAM_NAME, &ss, NULL, NULL, &error);
-	if (pa == NULL) {
-		LOG_ERROR("Playback device open failed: %s\n", pa_strerror(error));
-		return false;
-	}
-	return true;
-}
-
-void PulseAudioSink::stop()
-{
-	if (pa == NULL)
-		return;
-
-	pa_simple_free(pa);
-	pa = NULL;
-}
-
-void PulseAudioSink::setSamplerate(unsigned int samplerate)
-{
-	if (pa != NULL)
-		return;
-
-	_samplerate = ss.rate = samplerate;
-}
-
-void PulseAudioSink::setChannels(unsigned int channels)
-{
-	if (pa != NULL)
-		return;
-
-	_channels = ss.channels = channels;
-}
-
-void PulseAudioSink::setSubdevice(const string &subdevice)
-{
-	if (pa != NULL)
-		return;
-
-	LOG_ERROR("Not implemented yet\n");
-}
-
-void PulseAudioSink::push(short *samples, unsigned int nframes)
-{
-	int error;
-
-	if (!pa)
-		return;
-
-	if (pa_simple_write(pa, samples, nframes * sizeof(short) * _channels, &error) < 0) {
-		LOG_ERROR("Playback write failed: %s\n", pa_strerror(error));
-	}
-}
-
-/*******************/
-
-PulseAudioSource::PulseAudioSource() : SampleSource()
-{
-	/* Default sample spec */
-	ss.format = PA_SAMPLE_S16LE;
-	ss.rate = _samplerate;
-	ss.channels = _channels;
+	ss.format = PA_SAMPLE_FLOAT32LE;
+	ss.rate = inputSampleRate();
+	ss.channels = inputChannels();
 	pa = NULL;
 }
 
 PulseAudioSource::~PulseAudioSource()
 {
-	stop();
+
 }
 
-bool PulseAudioSource::start()
+bool PulseAudioSource::init()
 {
 	const char *source_name = NULL;
 	int error;
 
-	/* Calling again re-opens */
-	if (pa != NULL)
-		stop();
+	if (subdevice().length() > 0)
+		source_name = subdevice().c_str();
 
-	if (_subdevice.length() > 0)
-		source_name = _subdevice.c_str();
+	/* Update output sample rate and number of channels - always returns
+	 * whatever we were asked for */
+	ss.rate = inputSampleRate();
+	ss.channels = inputChannels();
+	_outputSampleRate = ss.rate;
+	_outputChannels = ss.channels;
 
-	LOG_INFO("Opening device %s for capture\n", source_name);
+	LOG_INFO("Opening device %s for capture (%u Hz, %u channels)\n", source_name, ss.rate, ss.channels);
 	pa = pa_simple_new(NULL, APP_NAME,
 		PA_STREAM_RECORD, source_name,
 		CAPTURE_STREAM_NAME, &ss, NULL, NULL, &error);
@@ -134,51 +54,83 @@ bool PulseAudioSource::start()
 		LOG_ERROR("Capture device open failed: %s\n", pa_strerror(error));
 		return false;
 	}
+
 	return true;
 }
 
-void PulseAudioSource::stop()
+void PulseAudioSource::deinit()
 {
-	if (pa == NULL)
-		return;
-
 	pa_simple_free(pa);
 	pa = NULL;
 }
 
-void PulseAudioSource::setSamplerate(unsigned int samplerate)
-{
-	if (pa != NULL)
-		return;
-
-	_samplerate = ss.rate = samplerate;
-}
-
-void PulseAudioSource::setChannels(unsigned int channels)
-{
-	if (pa != NULL)
-		return;
-
-	_channels = ss.channels = channels;
-}
-
-void PulseAudioSource::setSubdevice(const string &subdevice)
-{
-	if (pa != NULL)
-		return;
-
-	LOG_ERROR("Not implemented yet\n");
-}
-
-unsigned int PulseAudioSource::pull(short *samples, unsigned int maxframes)
+bool PulseAudioSource::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
 {
 	int error;
 
-	if (!pa)
-		return 0;
-
-	if (pa_simple_read(pa, samples, maxframes * sizeof(short) * _channels, &error) < 0) {
+	if (pa_simple_read(pa, (float*)outBuffer.data(), outBuffer.size() * sizeof(sample_t), &error) < 0) {
 		LOG_ERROR("Capture read failed: %s\n", pa_strerror(error));
+		return false;
 	}
-	return maxframes;
+	return true;
+}
+
+
+/*******************************/
+
+
+PulseAudioSink::PulseAudioSink(const string &name) :
+	SampleSink(name, "PulseAudioSink")
+{
+	/* Default sample spec */
+	ss.format = PA_SAMPLE_FLOAT32LE;
+	ss.rate = inputSampleRate();
+	ss.channels = inputChannels();
+	pa = NULL;
+}
+
+PulseAudioSink::~PulseAudioSink()
+{
+
+}
+
+bool PulseAudioSink::init()
+{
+	const char *sink_name = NULL;
+	int error;
+
+	if (subdevice().length() > 0)
+		sink_name = subdevice().c_str();
+
+	/* This is a sink - no need to set output rate */
+	ss.rate = inputSampleRate();
+	ss.channels = inputChannels();
+
+	LOG_INFO("Opening device %s for playback (%u Hz, %u channels)\n", sink_name, ss.rate, ss.channels);
+	pa = pa_simple_new(NULL, APP_NAME,
+		PA_STREAM_PLAYBACK, sink_name,
+		PLAYBACK_STREAM_NAME, &ss, NULL, NULL, &error);
+	if (pa == NULL) {
+		LOG_ERROR("Playback device open failed: %s\n", pa_strerror(error));
+		return false;
+	}
+
+	return true;
+}
+
+void PulseAudioSink::deinit()
+{
+	pa_simple_free(pa);
+	pa = NULL;
+}
+
+bool PulseAudioSink::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
+{
+	int error;
+
+	if (pa_simple_write(pa, (const float*)inBuffer.data(), inBuffer.size() * sizeof(sample_t), &error) < 0) {
+		LOG_ERROR("Playback write failed: %s\n", pa_strerror(error));
+		return false;
+	}
+	return true;
 }

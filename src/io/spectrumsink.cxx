@@ -5,10 +5,12 @@
 #include "debug.h"
 #include "spectrumsink.h"
 
+// FIXME: define M_PI
+
 /* NOTE: Accepts either real or interleaved IQ samples depending on the
  * number of channels specified */
-SpectrumSink::SpectrumSink() :
-			SampleSink(),
+SpectrumSink::SpectrumSink(const string &name) :
+			SampleSink(name, "SpectrumSink"),
 			inbuf(NULL), outbuf(NULL), inoffset(0),
 			_fftSize(DEFAULT_FFT_SIZE)
 {
@@ -20,58 +22,11 @@ SpectrumSink::~SpectrumSink()
 	pthread_mutex_destroy(&mutex);
 }
 
-bool SpectrumSink::start()
-{
-	if (inbuf != NULL)
-		stop();
-	
-	/* FIXME: Handle real->complex for spectrum of real signals */
-	inbuf = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * _fftSize);
-	outbuf = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * _fftSize);
-	inoffset = 0;
-	p = fftwf_plan_dft_1d(_fftSize, inbuf, outbuf, FFTW_FORWARD, FFTW_ESTIMATE);
-
-	return true;
-}
-
-void SpectrumSink::stop()
-{
-	if (inbuf == NULL)
-		return;
-
-	fftwf_destroy_plan(p);
-	fftwf_cleanup();
-	fftwf_free(inbuf);
-	fftwf_free(outbuf);
-	inbuf = outbuf = NULL;
-}
-
-void SpectrumSink::setSamplerate(unsigned int samplerate)
-{
-	if (inbuf != NULL)
-		return;
-	
-	_samplerate = samplerate;
-}
-
-void SpectrumSink::setChannels(unsigned int channels)
-{
-	if (inbuf != NULL)
-		return;
-	
-	if (!channels || channels > 2) {
-		LOG_ERROR("channels must be 1 (real) or 2 (IQ)\n");
-		return;
-	}
-	
-	_channels = channels;
-}
-
 void SpectrumSink::setFftSize(unsigned int size)
 {
-	if (inbuf != NULL)
+	if (isRunning())
 		return;
-	
+
 	if (size & (size - 1)) {
 		LOG_ERROR("size must be a power of 2\n");
 		return;
@@ -79,11 +34,42 @@ void SpectrumSink::setFftSize(unsigned int size)
 	_fftSize = size;
 }
 
-void SpectrumSink::push(float *samples, unsigned int nframes)
+bool SpectrumSink::init()
 {
-	if (inbuf == NULL)
-		return;
+	/* FIXME: Check number of channels, select appropriate plan */
+
+	/* FIXME: Handle real->complex for spectrum of real signals */
+	inbuf = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * _fftSize);
+	outbuf = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * _fftSize);
+	inoffset = 0;
+	p = fftwf_plan_dft_1d(_fftSize, inbuf, outbuf, FFTW_FORWARD, FFTW_ESTIMATE);
+
+	/* Calculate Hamming window */
+	window.resize(_fftSize);
+	for (unsigned int n = 0; n < _fftSize; n++) {
+		window[n] = 0.54 - 0.46 * cosf(2 * M_PI * (float)n / (float)(_fftSize - 1));
+	}
+
+	return true;
+}
+
+void SpectrumSink::deinit()
+{
+	fftwf_destroy_plan(p);
+	fftwf_cleanup();
+	fftwf_free(inbuf);
+	fftwf_free(outbuf);
+	inbuf = outbuf = NULL;
+}
+
+bool SpectrumSink::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
+{
+	const float *in = (const float*)inBuffer.data();
+	unsigned int nframes = inBuffer.size() / inputChannels();
 	
+	/* FIXME: This currently assumes 2 channels.  It is also pointless
+	 * converting the entire input buffer if there is no output queue */
+
 	/* NOTE: Must use float version of FFTW because we expect
 	 * fftw_complex to be float[2] not double[2] to match our
 	 * sample type.  This code should work for both real and
@@ -93,17 +79,24 @@ void SpectrumSink::push(float *samples, unsigned int nframes)
 		unsigned int blocksize = _fftSize - inoffset;
 		if (blocksize > nframes)
 			blocksize = nframes;
-		memcpy(&inbuf[inoffset], samples, blocksize * sizeof(float) * _channels);
+		memcpy(&inbuf[inoffset], in, blocksize * inputChannels() * sizeof(float));
 		inoffset += blocksize;
 		if (inoffset == _fftSize) {
+			/* Apply window */
+			for (unsigned int n = 0; n < _fftSize; n++) {
+				inbuf[n][0] *= window[n];
+				inbuf[n][1] *= window[n];
+			}
+
 			pthread_mutex_lock(&mutex);
 			fftwf_execute(p);
 			pthread_mutex_unlock(&mutex);
 			inoffset = 0;
 		}
 		nframes -= blocksize;
-		samples += blocksize * _channels;
+		in += blocksize * inputChannels();
 	}
+	return true;
 }
 
 void SpectrumSink::getSpectrum(float *magnitudes)

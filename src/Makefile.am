@@ -2,7 +2,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 AM_CXXFLAGS = -Wall -Werror \
-	-I. -Idsp -Iio -Iweb \
+	-I. -Idsp -Iio -Iweb -Idecoders \
 	$(libmicrohttpd_CFLAGS) \
 	$(libfftw3_CFLAGS) \
 	$(librtlsdr_CFLAGS) \
@@ -11,20 +11,22 @@ AM_CXXFLAGS = -Wall -Werror \
 bin_PROGRAMS = webradio
 webradio_SOURCES = main.cxx \
 	web/apihandler.cxx \
-	web/audioencoder.cxx \
 	web/audiostream.cxx \
 	web/filehandler.cxx \
 	web/httpserver.cxx \
 	web/mp3encoder.cxx \
+	io/randsource.cxx \
 	io/pulseaudio.cxx \
 	io/rtlsdrtuner.cxx \
-	io/samplesink.cxx \
-	io/samplesource.cxx \
 	io/spectrumsink.cxx \
-	dsp/amdemod.cxx \
-	dsp/filter.cxx
+	dsp/dspblock.cxx \
+	dsp/lowpass.cxx \
+	dsp/downconverter.cxx \
+	dsp/receiver.cxx \
+	dsp/amdemod.cxx
 
 webradio_LDADD = -lm -lmp3lame \
+	$(libjsoncpp_LIBS) \
 	$(libmicrohttpd_LIBS) \
 	$(libfftw3_LIBS) \
 	$(librtlsdr_LIBS) \

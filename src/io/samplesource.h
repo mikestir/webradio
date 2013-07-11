@@ -11,39 +11,34 @@
 #include <vector>
 #include <string>
 
-#define DEFAULT_SOURCE_SAMPLE_RATE		48000
-#define DEFAULT_SOURCE_CHANNELS			2
+#include "dspblock.h"
 
 using namespace std;
 
-class SampleSource
+class SampleSource : public DspSource
 {
 public:
-	SampleSource() :
-			_samplerate(DEFAULT_SOURCE_SAMPLE_RATE),
-			_channels(DEFAULT_SOURCE_CHANNELS),
-			_subdevice(""),
-			_subdevices() {}
+	SampleSource(
+			const string &name = "<undefined>",
+			const string &type = "SampleSource") :
+			DspSource(name, type),
+			_subdevices(),
+			_subdevice("") {}
 	virtual ~SampleSource() {}
 
-	virtual bool start() { return false; };
-	virtual void stop() {};
-
-	unsigned int samplerate() const { return _samplerate; }
-	virtual void setSamplerate(unsigned int samplerate) {}
-	unsigned int channels() const { return _channels; }
-	virtual void setChannels(unsigned int channels) {}
 	const string& subdevice() const { return _subdevice; }
-	virtual void setSubdevice(const string &subdevice) {}
 	const vector<string>& subdevices() const { return _subdevices; }
 
-	virtual unsigned int pull(short *samples, unsigned int maxframes);
-	virtual unsigned int pull(float *samples, unsigned int maxframes);
+	void setSubdevice(const string &subdevice) {
+		if (isRunning())
+			return;
+		_subdevice = subdevice;
+	}
+
 protected:
-	unsigned int _samplerate;
-	unsigned int _channels;
+	vector<string> _subdevices; // should be filled by constructor
+private:
 	string _subdevice;
-	vector<string> _subdevices;
 };
 
 #endif /* SAMPLESOURCE_H_ */

@@ -20,24 +20,25 @@ using namespace std;
 class Tuner : public SampleSource
 {
 public:
-	Tuner() :
-			SampleSource(),
+	Tuner(
+			const string &name = "<undefined>",
+			const string &type = "Tuner") :
+			SampleSource(name, type),
 			_centreFrequency(100000000),
 			_offsetPPM(0),
 			_AGC(true),
 			_gainDB(0) {}
 	virtual ~Tuner() {}
-	static Tuner* factory() {
-		return new Tuner();
-	}
 
 	unsigned int centreFrequency() const { return _centreFrequency; }
-	virtual void setCentreFrequency(unsigned int hz) {}
 	int offsetPPM() const { return _offsetPPM; }
-	virtual void setOffsetPPM(int ppm) {}
 	bool AGC() const { return _AGC; }
-	virtual void setAGC(bool agc) {}
+	// Subclass can provide live access to AGC gain if desired
 	virtual float gainDB() const { return _gainDB; }
+
+	virtual void setCentreFrequency(unsigned int hz) {}
+	virtual void setOffsetPPM(int ppm) {}
+	virtual void setAGC(bool agc) {}
 	virtual void setGainDB(float gain) {}
 
 protected:

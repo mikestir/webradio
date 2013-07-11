@@ -37,25 +37,16 @@ class AudioStreamManager;
 class AudioStreamManager : public SampleSink
 {
 public:
-	AudioStreamManager();
+	AudioStreamManager(const string &name = "<undefined>");
 	virtual ~AudioStreamManager();
-	static SampleSink* factory() {
-		return new AudioStreamManager();
-	}
-
-	bool start();
-	void stop();
-
-	void setSamplerate(unsigned int samplerate);
-	void setChannels(unsigned int channels);
-	void setSubdevice(const string &subdevice);
-
-	void push(float *samples, unsigned int nframes);
-	void push(short *samples, unsigned int nframes);
 
 	void registerConsumer(AudioStreamHandler *consumer);
 	void deregisterConsumer(AudioStreamHandler *consumer);
 private:
+	bool init();
+	void deinit();
+	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+
 	void produce(const vector<char> &stream);
 	vector<AudioStreamHandler*> _consumers;
 

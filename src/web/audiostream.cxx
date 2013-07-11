@@ -20,7 +20,8 @@
 /*! Global mountpoint map */
 static map<string,AudioStreamManager*> streams;
 
-AudioStreamManager::AudioStreamManager() : SampleSink()
+AudioStreamManager::AudioStreamManager(const string &name) :
+	SampleSink(name, "AudioStreamManager")
 {
 	pthread_mutex_init(&mutex, NULL);
 	encoder = NULL;
@@ -28,73 +29,31 @@ AudioStreamManager::AudioStreamManager() : SampleSink()
 
 AudioStreamManager::~AudioStreamManager()
 {
-	if (encoder)
-		stop();
 	pthread_mutex_destroy(&mutex);
 }
 
-bool AudioStreamManager::start()
+bool AudioStreamManager::init()
 {
-	if (encoder != NULL)
-		stop();
-
-	encoder = new MP3Encoder(_samplerate, _channels);
-	streams[_subdevice] = this;
+	encoder = new MP3Encoder(inputSampleRate(), inputChannels());
+	streams[subdevice()] = this;
 	return true;
 }
 
-void AudioStreamManager::stop()
+void AudioStreamManager::deinit()
 {
-	if (encoder == NULL)
-		return;
-
-	streams.erase(_subdevice);
+	streams.erase(subdevice());
 	delete encoder;
 	encoder = NULL;
 }
 
-void AudioStreamManager::setSamplerate(unsigned int samplerate)
+bool AudioStreamManager::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
 {
-	if (encoder != NULL)
-		return;
-
-	_samplerate = samplerate;
-}
-
-void AudioStreamManager::setChannels(unsigned int channels)
-{
-	if (encoder != NULL)
-		return;
-
-	_channels = channels;
-}
-
-void AudioStreamManager::setSubdevice(const string &subdevice)
-{
-	if (encoder != NULL)
-		return;
-
-	_subdevice = subdevice;
-}
-
-void AudioStreamManager::push(short *samples, unsigned int nframes)
-{
-	if (encoder == NULL || _consumers.size() == 0)
-		return;
+	if (_consumers.size() == 0)
+		return true; // silently do nothing if no clients
 
 	/* Encode to MP3 and push to all registered consumers */
-	vector<char> frame = encoder->encode(samples, nframes);
-	produce(frame);
-}
-
-void AudioStreamManager::push(float *samples, unsigned int nframes)
-{
-	if (encoder == NULL || _consumers.size() == 0)
-		return;
-
-	/* Encode to MP3 and push to all registered consumers */
-	vector<char> frame = encoder->encode(samples, nframes);
-	produce(frame);
+	produce(encoder->encode(inBuffer));
+	return true;
 }
 
 void AudioStreamManager::produce(const vector<char> &stream)
@@ -117,7 +76,7 @@ void AudioStreamManager::produce(const vector<char> &stream)
 
 void AudioStreamManager::registerConsumer(AudioStreamHandler *consumer)
 {
-	LOG_DEBUG("registered audio consumer %p for mountpoint %s\n", consumer, _subdevice.c_str());
+	LOG_DEBUG("registered audio consumer %p for mountpoint %s\n", consumer, subdevice().c_str());
 	pthread_mutex_lock(&mutex);
 	_consumers.push_back(consumer);
 	pthread_mutex_unlock(&mutex);
@@ -132,7 +91,7 @@ void AudioStreamManager::deregisterConsumer(AudioStreamHandler *consumer)
 			consumer),
 			_consumers.end());
 	pthread_mutex_unlock(&mutex);
-	LOG_DEBUG("deregistered audio consumer %p from mountpoint %s\n", consumer, _subdevice.c_str());
+	LOG_DEBUG("deregistered audio consumer %p from mountpoint %s\n", consumer, subdevice().c_str());
 }
 
 /*****************/
@@ -156,8 +115,10 @@ HttpRequestHandler* AudioStreamHandler::factory()
 
 void AudioStreamHandler::push(const vector<char> &data)
 {
-	if (write(pipefd[1], data.data(), data.size()) < (int)data.size()) {
-		LOG_ERROR("pipe write error\n");
+	int size = (int)data.size();
+
+	if (write(pipefd[1], data.data(), size) < size) {
+		LOG_ERROR("pipe write error - discarded %d bytes\n", size);
 	}
 }
 
@@ -194,6 +155,8 @@ unsigned short AudioStreamHandler::handleRequest(const string &method, const str
 		LOG_ERROR("pipe error\n");
 		return MHD_HTTP_INTERNAL_SERVER_ERROR;
 	}
+	/* Write end of the pipe must be non-blocking */
+	fcntl(pipefd[1], F_SETFL, O_NONBLOCK);
 
 	streams[mountpoint]->registerConsumer(this);
 	_isPersistent = true;

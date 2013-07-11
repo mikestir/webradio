@@ -11,39 +11,33 @@
 #include <vector>
 #include <string>
 
-#define DEFAULT_SINK_SAMPLE_RATE		48000
-#define DEFAULT_SINK_CHANNELS			2
+#include "dspblock.h"
 
 using namespace std;
 
-class SampleSink
+class SampleSink : public DspBlock
 {
 public:
-	SampleSink() :
-			_samplerate(DEFAULT_SINK_SAMPLE_RATE),
-			_channels(DEFAULT_SINK_CHANNELS),
-			_subdevice(""),
-			_subdevices() {}
+	SampleSink(
+			const string &name = "<undefined>",
+			const string &type = "SampleSink") :
+			DspBlock(name, type),
+			_subdevices(),
+			_subdevice("") {}
 	virtual ~SampleSink() {}
 
-	virtual bool start() { return false; };
-	virtual void stop() {};
-
-	unsigned int samplerate() const { return _samplerate; }
-	virtual void setSamplerate(unsigned int samplerate) {}
-	unsigned int channels() const { return _channels; }
-	virtual void setChannels(unsigned int channels) {}
 	const string& subdevice() const { return _subdevice; }
-	virtual void setSubdevice(const string &subdevice) {}
 	const vector<string>& subdevices() const { return _subdevices; }
 
-	virtual void push(short *samples, unsigned int nframes);
-	virtual void push(float *samples, unsigned int nframes);
+	void setSubdevice(const string &subdevice) {
+		if (isRunning())
+			return;
+		_subdevice = subdevice;
+	}
 protected:
-	unsigned int _samplerate;
-	unsigned int _channels;
-	string _subdevice;
 	vector<string> _subdevices;
+private:
+	string _subdevice;
 };
 
 #endif /* SAMPLESINK_H_ */

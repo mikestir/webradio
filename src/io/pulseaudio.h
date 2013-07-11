@@ -22,18 +22,14 @@ using namespace std;
 class PulseAudioSource : public SampleSource
 {
 public:
-	PulseAudioSource();
+	PulseAudioSource(const string &name = "<undefined>");
 	~PulseAudioSource();
 
-	bool start();
-	void stop();
-
-	void setSamplerate(unsigned int samplerate);
-	void setChannels(unsigned int channels);
-	void setSubdevice(const string &subdevice);
-
-	unsigned int pull(short *samples, unsigned int maxframes);
 private:
+	bool init();
+	void deinit();
+	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+
 	pa_sample_spec ss;
 	pa_simple *pa;
 };
@@ -41,21 +37,14 @@ private:
 class PulseAudioSink : public SampleSink
 {
 public:
-	PulseAudioSink();
+	PulseAudioSink(const string &name = "<undefined>");
 	~PulseAudioSink();
-	static SampleSink* factory() {
-		return new PulseAudioSink();
-	}
 
-	bool start();
-	void stop();
-
-	void setSamplerate(unsigned int samplerate);
-	void setChannels(unsigned int channels);
-	void setSubdevice(const string &subdevice);
-
-	void push(short *samples, unsigned int nframes);
 private:
+	bool init();
+	void deinit();
+	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+
 	pa_sample_spec ss;
 	pa_simple *pa;
 };

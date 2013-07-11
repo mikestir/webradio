@@ -25,8 +25,7 @@ public:
 	virtual const vector<char> header() {
 		return vector<char>();
 	}
-	virtual const vector<char> encode(short *samples, unsigned int nframes);
-	virtual const vector<char> encode(float *samples, unsigned int nframes);
+	virtual const vector<char> encode(const vector<float> &samples) =0;
 
 	const unsigned int channels() const { return _channels; }
 	const unsigned int samplerate() const { return _samplerate; }
@@ -43,7 +42,7 @@ public:
 	MP3Encoder(unsigned int samplerate, unsigned int channels);
 	~MP3Encoder();
 
-	const vector<char> encode(short *samples, unsigned int nframes);
+	const vector<char> encode(const vector<float> &samples);
 private:
 	lame_t			state;
 };
@@ -55,7 +54,7 @@ public:
 	~VorbisEncoder();
 
 	const vector<char> header();
-	const vector<char> encode(float *samples, unsigned int nframes);
+	const vector<char> encode(const vector<float> &samples);
 private:
 	vorbis_info			vi;
 	vorbis_comment		vc;

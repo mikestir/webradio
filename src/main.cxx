@@ -19,125 +19,122 @@
 #include "pulseaudio.h"
 #include "rtlsdrtuner.h"
 #include "spectrumsink.h"
-#include "filter.h"
-#include "amdemod.h"
+#include "lowpass.h"
 #include "randsource.h"
+#include "downconverter.h"
+#include "amdemod.h"
 
 static volatile bool quit = false;
-
-SpectrumSink *spectrum;
-Tuner *tuner;
-Filter *filter;
 
 static void sighandler(int signum)
 {
 	quit = true;
 }
 
+SpectrumSink *spectrum;
+Tuner *tuner;
+DownConverter *dc1, *dc2;
+
 int main(int argc, char **argv)
 {
 	struct sigaction sa;
-	HttpServer *server;
+	struct timeval now,last;
 	
 	sa.sa_handler = sighandler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
 	sigaction(SIGINT, &sa, NULL);
-
-#if 0
-	SampleSource *rand = new RandSource();
-	rand->setSamplerate(48000);
-	rand->setChannels(2);
-	rand->start();
-
-	SampleSource *cp = new PulseAudioSource();
-	cp->setSamplerate(48000);
-	cp->setChannels(2);
-	cp->start();
-#endif
-	SampleSink *pb = new PulseAudioSink();
-	pb->setSamplerate(48000);
-	pb->setChannels(1);
-	pb->start();
 	
-	SampleSink *stream = new AudioStreamManager();
-	stream->setSubdevice("/stream1");
-	stream->setChannels(1);
-	stream->start();
-
+	//SampleSource *src = new PulseAudioSource();
+	//src->setSampleRate(48000);
+	//src->setChannels(2);
+	//src->setBlockSize(32768);
 
 	tuner = new RtlSdrTuner();
-	tuner->setCentreFrequency(124325000);
+	tuner->setCentreFrequency(124000000);
 	tuner->setOffsetPPM(25);
+	tuner->setSampleRate(2400000);
+	tuner->setBlockSize(204800);
 	tuner->setAGC(true);
-	tuner->setSamplerate(1200000);
-	tuner->start();
-	LOG_DEBUG("gain is %f dB\n", tuner->gainDB());
-	
+
 	spectrum = new SpectrumSink();
-	spectrum->setSamplerate(tuner->samplerate());
-	spectrum->setChannels(tuner->channels());
-	spectrum->start();
-	
-	/* channel filter */
-	filter = new Filter();
-	filter->setInputSamplerate(tuner->samplerate());
-	filter->setOutputSamplerate(pb->samplerate());
-	filter->setChannels(tuner->channels());
-	filter->setPassband(20000);
-	filter->start();
+	tuner->connect(spectrum);
+
+
+	dc1 = new DownConverter();
+	dc1->setIF(325000);
+
+	LowPass *filt1 = new LowPass();
+	filt1->setPassband(80000);
+	filt1->setOutputSampleRate(240000);
 
 	AMDemod *demod = new AMDemod();
-	demod->setInputSamplerate(filter->outputSamplerate());
-	demod->start();
 
-	server = new HttpServer(8080);
+	LowPass *filt2 = new LowPass();
+	filt2->setPassband(8000);
+	filt2->setOutputSampleRate(48000);
 
-	server->registerHandler("/static", FileHandler::factory);
-	server->registerHandler("/audio", AudioStreamHandler::factory);
-	server->registerHandler("/api", ApiHandler::factory);
-	server->start();
+	SampleSink *sink = new AudioStreamManager();
+	sink->setSubdevice("/stream1");
 
-	struct timeval last;
-	unsigned int incount = 0, outcount = 0;
-	gettimeofday(&last, NULL);
-	while (!quit) {
-
-		/* 2.4 MHz / 50 = 48 kHz */
-		static float buf[51200];
-		static float buf2[51200];
-		unsigned int frames1, frames2;
-		frames1 = tuner->pull(buf, sizeof(buf) / sizeof(float) / tuner->channels());
-		incount += frames1;
-		spectrum->push(buf, frames1);
-		frames2 = filter->process(buf, buf2, frames1);
-		outcount += frames2;
-		demod->process(buf2, buf, frames2);
-		stream->push(buf, frames2);
-
-		struct timeval now;
-		gettimeofday(&now, NULL);
-		if (now.tv_sec != last.tv_sec) {
-			last = now;
-			LOG_DEBUG("inframes = %u, outframes = %u\n", incount, outcount);
-			incount = 0;
-			outcount = 0;
-		}
-
-//		struct timeval t;
-//		gettimeofday(&t, NULL);
-//		LOG_DEBUG("time %u.%05u: %u, %u\n", t.tv_sec,t.tv_usec,frames1,frames2);
-	}
+	tuner->connect(dc1);
+	dc1->connect(filt1);
+	filt1->connect(demod);
+	demod->connect(filt2);
+	filt2->connect(sink);
 
 #if 0
-	LOG_INFO("cleaning up\n");
-	delete server;
-	delete spectrum;
-	delete tuner;
-	delete stream2;
-	delete stream;
-	delete cp;
+	dc2 = new DownConverter();
+	dc2->setIF(1010000);
+
+	LowPass *filt3 = new LowPass();
+	filt3->setPassband(80000);
+	filt3->setOutputSampleRate(240000);
+
+	AMDemod *demod2 = new AMDemod();
+
+	LowPass *filt4 = new LowPass();
+	filt4->setPassband(8000);
+	filt4->setOutputSampleRate(248000);
+
+	SampleSink *sink2 = new AudioStreamManager();
+	sink2->setSubdevice("/stream2");
+
+	tuner->connect(dc2);
+	dc2->connect(filt3);
+	filt3->connect(demod2);
+	demod2->connect(filt4);
+	filt4->connect(sink2);
 #endif
+
+
+	tuner->start();
+
+	HttpServer *h = new HttpServer(8080);
+	h->registerHandler("/audio", AudioStreamHandler::factory);
+	h->registerHandler("/static", FileHandler::factory);
+	h->registerHandler("/api", ApiHandler::factory);
+	h->start();
+
+
+	gettimeofday(&last, NULL);
+	while (!quit) {
+		static unsigned int lastin = 0;
+		gettimeofday(&now, NULL);
+		tuner->run();
+		if (now.tv_sec >= last.tv_sec + 5) {
+			LOG_DEBUG("%u Hz\n", (tuner->totalOut() - lastin) / 5);
+			last = now;
+			lastin = tuner->totalOut();
+		}
+	}
+
+	delete h;
+	delete tuner;
+	//delete filt1;
+	delete filt2;
+	delete demod;
+	delete sink;
 
 	return 0;
 }

@@ -9,43 +9,40 @@
 
 #include <unistd.h>
 #include <pthread.h>
+#include <rtl-sdr.h>
 
 #include "debug.h"
 #include "rtlsdrtuner.h"
 
-#ifdef RTLSDR_ASYNC_READ
-#define MAX_BACKLOG					524288
-#endif
+#define N_BUFFERS_LOG2		2
+#define N_BUFFERS			(1 << (N_BUFFERS_LOG2))
 
-RtlSdrTuner::RtlSdrTuner() : Tuner(), dev(NULL)
+RtlSdrTuner::RtlSdrTuner(const string &name) :
+	Tuner(name, "RtlSdrTuner"), dev(NULL), head(0), tail(0)
 {
-#ifdef RTLSDR_ASYNC_READ
+	unsigned int deviceCount;
+
 	pthread_mutex_init(&mutex, NULL);
-#endif
+	pthread_cond_init(&readyCondition, NULL);
 	
-	_channels = 2; // only supports I/Q sampling
+	_outputChannels = 2; // only supports I/Q sampling
 	deviceCount = rtlsdr_get_device_count();
 
 	LOG_DEBUG("Found %d devices\n", deviceCount);
 	for (unsigned int n = 0; n < deviceCount; n++) {
 		/* FIXME: Incorporate this into the _subdevices vector in some way */
-		deviceNames.push_back(rtlsdr_get_device_name(n));
-		LOG_DEBUG("Device %d: %s\n", n, deviceNames[n].c_str());
+		_subdevices.push_back(rtlsdr_get_device_name(n));
+		LOG_DEBUG("Device %d: %s\n", n, _subdevices[n].c_str());
 	}
 
 }
 
 RtlSdrTuner::~RtlSdrTuner()
 {
-	if (dev != NULL)
-		stop();
-	
-#ifdef RTLSDR_ASYNC_READ
 	pthread_mutex_destroy(&mutex);
-#endif
+	pthread_cond_destroy(&readyCondition);
 }
 
-#ifdef RTLSDR_ASYNC_READ
 void* RtlSdrTuner::thread_func(void* arg)
 {
 	RtlSdrTuner *self = (RtlSdrTuner*)arg;
@@ -53,9 +50,10 @@ void* RtlSdrTuner::thread_func(void* arg)
 	rtlsdr_reset_buffer(self->dev);
 	sleep(1);
 	rtlsdr_read_sync(self->dev, NULL, 4096, NULL);
+
 	LOG_DEBUG("starting async capture\n");
 	rtlsdr_read_async(self->dev, &RtlSdrTuner::callback, (void*)self,
-		0, 0 /* accept defaults */);
+		0, 0 /* accept default buffer size/count */);
 	LOG_DEBUG("finished async capture\n");
 	pthread_exit(0);
 }
@@ -63,32 +61,112 @@ void* RtlSdrTuner::thread_func(void* arg)
 void RtlSdrTuner::callback(unsigned char *buf, unsigned int len, void *arg)
 {
 	RtlSdrTuner *self = (RtlSdrTuner*)arg;
+	self->dataReady(buf, len);
+}
 
+void RtlSdrTuner::dataReady(unsigned char *buf, unsigned int len)
+{
 	/* Blocks of samples from the async USB handler come here and are
-	 * pushed into a ring buffer, in turn read by the "pull" method.
-	 * This ensures that USB flow continues even if the consumer stops reading */
+	 * pushed into a ring of blockSize()ed buffers.  These can be popped
+	 * asynchronously by the pipeline thread. */
 
-	// FIXME: We must treat I/Q pairs atomically - must not push or pop half
-	// a sample or we will get out of sync
-	while (len--) {
-		unsigned int nexttail = (self->tail + 1) & (MAX_BACKLOG - 1);
-		if (nexttail == self->head) {
-			LOG_ERROR("lost %u samples\n", len);
-			return;
+	while (len) {
+
+		/* If tail is full then we have a buffer overflow */
+		vector<sample_t> *buffer = &ringBuffer[tail];
+#if 0
+		LOG_DEBUG("len = %u tail %u (%u avail)\n", len, tail, blockSize() - (unsigned int)buffer->size());
+#endif
+		if (buffer->size() == blockSize()) {
+			LOG_ERROR("Lost %u bytes\n", len);
+			break;
 		}
-		self->buffer[self->tail] = ((float)(*buf++) - 128.0) / 128.0;
-		self->tail = nexttail;
+
+		pthread_mutex_lock(&mutex);
+		while (len && buffer->size() < blockSize()) {
+			buffer->push_back(((float)(*buf++) - 128.0) / 128.0);
+			len--;
+		}
+
+		if (buffer->size() == blockSize()) {
+			/* Give new buffer to app */
+			tail = (tail + 1) & (N_BUFFERS - 1);
+			pthread_cond_signal(&readyCondition);
+		}
+		pthread_mutex_unlock(&mutex);
 	}
 }
-#endif
 
-bool RtlSdrTuner::start()
+void RtlSdrTuner::setCentreFrequency(unsigned int hz)
 {
-	if (dev != NULL)
-		stop();
+	if (dev == NULL) {
+		/* No device yet - update initial */
+		_centreFrequency = hz;
+		return;
+	}
 
+	rtlsdr_set_center_freq(dev, hz);
+	_centreFrequency = rtlsdr_get_center_freq(dev);
+	LOG_DEBUG("centre frequency set to %u Hz\n", _centreFrequency);
+}
+
+void RtlSdrTuner::setOffsetPPM(int ppm)
+{
+	if (dev == NULL) {
+		/* No device yet - update initial */
+		_offsetPPM = ppm;
+		return;
+	}
+
+	rtlsdr_set_freq_correction(dev, ppm);
+	_offsetPPM = rtlsdr_get_freq_correction(dev);
+	LOG_DEBUG("frequency correction set to %d ppm\n", _offsetPPM);
+}
+
+void RtlSdrTuner::setAGC(bool agc)
+{
+	if (dev == NULL) {
+		/* No device yet - update initial */
+		_AGC = agc;
+		return;
+	}
+
+	if (rtlsdr_set_tuner_gain_mode(dev, agc ? 0 : 1) == 0)
+		_AGC = agc;
+	LOG_DEBUG("AGC mode set to %d\n", _AGC);
+}
+
+float RtlSdrTuner::gainDB()
+{
+	if (dev != NULL && _AGC)
+		_gainDB = (float)rtlsdr_get_tuner_gain(dev) / 10.0;
+
+	/* FIXME: Deal with IF gain? */
+
+	return _gainDB;
+}
+
+void RtlSdrTuner::setGainDB(float gain)
+{
+	if (dev == NULL) {
+		/* No device yet - update initial */
+		_gainDB = gain;
+		return;
+	}
+
+	if (_AGC)
+		return;
+
+	/* FIXME: Deal with IF gain? */
+
+	rtlsdr_set_tuner_gain(dev, (int)(gain * 10.0));
+	_gainDB = (float)rtlsdr_get_tuner_gain(dev) / 10.0;
+}
+
+bool RtlSdrTuner::init()
+{
 	/* FIXME: We don't currently support subdevices, just open the first one */
-	if (deviceCount < 1) {
+	if (_subdevices.size() < 1) {
 		LOG_ERROR("No RTL-SDR devices found\n");
 		return false;
 	}
@@ -116,9 +194,9 @@ bool RtlSdrTuner::start()
 
 	/* We adjust actual device sample rate here.  No support for
 	 * changing while device is running */
-	rtlsdr_set_sample_rate(dev, _samplerate);
-	_samplerate = rtlsdr_get_sample_rate(dev);
-	LOG_DEBUG("samplerate set to %u Hz\n", _samplerate);
+	rtlsdr_set_sample_rate(dev, inputSampleRate());
+	_outputSampleRate = rtlsdr_get_sample_rate(dev);
+	LOG_DEBUG("samplerate set to %u Hz\n", _outputSampleRate);
 	rtlsdr_set_agc_mode(dev, 1); // RTL2832 internal AGC
 	
 	/* Push current settings */
@@ -127,156 +205,53 @@ bool RtlSdrTuner::start()
 	setAGC(_AGC);
 	setGainDB(_gainDB);
 	
-#ifdef RTLSDR_ASYNC_READ
+	/* Reserve capture buffer pool */
+	ringBuffer.resize(N_BUFFERS);
+	for (vector<vector<sample_t> >::iterator it = ringBuffer.begin(); it != ringBuffer.end(); ++it) {
+		it->reserve(blockSize());
+		it->resize(0);
+	}
+
 	/* Set up async rx */
-	buffer.resize(MAX_BACKLOG);
-	head = tail = 0;
 	if (pthread_create(&thread, NULL, &RtlSdrTuner::thread_func, (void*)this)) {
 		LOG_ERROR("Failed starting capture thread\n");
 		return false;
 	}
-#else
-	/* Set up sync rx */
-	rtlsdr_reset_buffer(dev);
-	sleep(1);
-	rtlsdr_read_sync(dev, NULL, 4096, NULL);
-#endif
 
 	return true;
 }
 
-void RtlSdrTuner::stop()
+void RtlSdrTuner::deinit()
 {
-	if (dev == NULL)
-		return;
-
-#ifdef RTLSDR_ASYNC_READ
 	rtlsdr_cancel_async(dev);
 	pthread_join(thread, NULL);
-	vector<float>().swap(buffer); // release memory
-#endif
-	rtlsdr_close(dev);
 	dev = NULL;
+
+	/* Release capture buffers */
+	for (vector<vector<sample_t> >::iterator it = ringBuffer.begin(); it != ringBuffer.end(); ++it)
+		vector<sample_t>().swap(*it);
+	vector<vector<sample_t> >().swap(ringBuffer);
 }
 
-void RtlSdrTuner::setSamplerate(unsigned int samplerate)
+bool RtlSdrTuner::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
 {
-	if (dev != NULL)
-		return;
-	
-	_samplerate = samplerate;
-}
-
-void RtlSdrTuner::setChannels(unsigned int channels)
-{
-	if (dev != NULL)
-		return;
-
-	/* Some tuners might support real sampling, but we don't */
-	LOG_ERROR("setChannels not supported\n");
-}
-
-void RtlSdrTuner::setSubdevice(const string &subdevice)
-{
-	if (dev != NULL)
-		return;
-	
-	/* FIXME: We should support this */
-	LOG_ERROR("setSubdevice not supported\n");
-}
-
-void RtlSdrTuner::setCentreFrequency(unsigned int hz)
-{
-	if (dev == NULL) {
-		/* No device yet - update initial */
-		_centreFrequency = hz;
-		return;
-	}
-	
-	rtlsdr_set_center_freq(dev, hz);
-	_centreFrequency = rtlsdr_get_center_freq(dev);
-	LOG_DEBUG("centre frequency set to %u Hz\n", _centreFrequency);
-}
-
-void RtlSdrTuner::setOffsetPPM(int ppm)
-{
-	if (dev == NULL) {
-		/* No device yet - update initial */
-		_offsetPPM = ppm;
-		return;
-	}
-	
-	rtlsdr_set_freq_correction(dev, ppm);
-	_offsetPPM = rtlsdr_get_freq_correction(dev);
-	LOG_DEBUG("frequency correction set to %d ppm\n", _offsetPPM);
-}
-
-void RtlSdrTuner::setAGC(bool agc)
-{
-	if (dev == NULL) {
-		/* No device yet - update initial */
-		_AGC = agc;
-		return;
-	}
-	
-	if (rtlsdr_set_tuner_gain_mode(dev, agc ? 0 : 1) == 0)
-		_AGC = agc;
-	LOG_DEBUG("AGC mode set to %d\n", _AGC);
-}
-
-float RtlSdrTuner::gainDB()
-{
-	if (dev != NULL && _AGC)
-		_gainDB = (float)rtlsdr_get_tuner_gain(dev) / 10.0;
-	
-	/* FIXME: Deal with IF gain? */
-
-	return _gainDB;
-}
-
-void RtlSdrTuner::setGainDB(float gain)
-{
-	if (dev == NULL) {
-		/* No device yet - update initial */
-		_gainDB = gain;
-		return;
-	}
-	
-	if (_AGC)
-		return;
-	
-	/* FIXME: Deal with IF gain? */
-	
-	rtlsdr_set_tuner_gain(dev, (int)(gain * 10.0));
-	_gainDB = (float)rtlsdr_get_tuner_gain(dev) / 10.0;
-}
-
-unsigned int RtlSdrTuner::pull(float *samples, unsigned int maxframes)
-{
-	if (dev == NULL)
-		return 0;
-		
-#ifdef RTLSDR_ASYNC_READ
-	/* Read data from the ring buffer */
-	unsigned int nread;
-	for (nread = 0; nread < maxframes * _channels; nread++) {
-		if (head == tail)
-			break;
-
-		*samples++ = buffer[head];
-		head = (head + 1) & (MAX_BACKLOG - 1);
-	}
-	return nread / _channels;
-#else
-	/* Read data synchronously */
-	vector<unsigned char> cbuf(maxframes * _channels);
-	int nread;
-	
-	rtlsdr_read_sync(dev, (void*)cbuf.data(), maxframes * _channels, &nread);
-	
-	for (unsigned int n = 0; n < nread; n++)
-		*samples++ = (((float)cbuf[n]) - 128.0) / 128.0;
-
-	return nread / _channels;
+	/* Pop ringbuffer, block if empty */
+	pthread_mutex_lock(&mutex);
+	vector<sample_t> *nextbuffer = &ringBuffer[head];
+	while (nextbuffer->size() != blockSize()) {
+#if 0
+		LOG_DEBUG("wait blockSize = %u, outBuffer.size = %u, head = %u (avail %u)\n",
+				blockSize(), (unsigned int)outBuffer.size(), head, (unsigned int)nextbuffer->size());
 #endif
+		pthread_cond_wait(&readyCondition, &mutex);
+	}
+#if 0
+	LOG_DEBUG("ready %u (avail %u)\n", head, (unsigned int)nextbuffer->size());
+#endif
+	outBuffer.swap(*nextbuffer);
+	nextbuffer->resize(0);
+	head = (head + 1) & (N_BUFFERS - 1);
+	pthread_mutex_unlock(&mutex);
+	return true;
 }
+

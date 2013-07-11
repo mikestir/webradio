@@ -21,22 +21,18 @@ using namespace std;
 class SpectrumSink : public SampleSink
 {
 public:
-	SpectrumSink();
+	SpectrumSink(const string &name = "<undefined>");
 	virtual ~SpectrumSink();
 
-	bool start();
-	void stop();
-
-	void setSamplerate(unsigned int samplerate);
-	void setChannels(unsigned int channels);
-	
 	unsigned int fftSize() const { return _fftSize; }
 	void setFftSize(unsigned int size);
 
-	void push(float *samples, unsigned int nframes);
-
 	void getSpectrum(float *magnitudes); // FIXME: Better for clients to register for a callback?
 private:
+	bool init();
+	void deinit();
+	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+
 	fftwf_complex *inbuf;
 	fftwf_complex *outbuf;
 	fftwf_plan p;
@@ -45,6 +41,7 @@ private:
 	pthread_mutex_t mutex;
 	
 	unsigned int _fftSize;
+	vector<float> window;
 };
 
 #endif /* SPECTRUMSINK_H_ */
