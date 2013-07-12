@@ -80,9 +80,10 @@ bool DownConverter::process(const vector<sample_t> &inBuffer, vector<sample_t> &
 
 		/* Complex mixer - signal is multiplied by the complex conjugate of the
 		 * local oscillator */
-		*out++ = in[0] * sinTable[cosidx] + in[1] * sinTable[sinidx]; // I
-		*out++ = in[1] * sinTable[cosidx] - in[0] * sinTable[sinidx]; // Q
-		in += 2;
+		float i = *in++;
+		float q = *in++;
+		*out++ = i * sinTable[cosidx] + q * sinTable[sinidx]; // I
+		*out++ = q * sinTable[cosidx] - i * sinTable[sinidx]; // Q
 	}
 
 	return true;

@@ -47,8 +47,7 @@ private:
 	unsigned int	_passband;
 
 	/* Filter operation */
-	vector<vector<float> >	fir;
-	unsigned int	headpos;
+	vector<float>	history;
 	unsigned int	decimationCount;
 	unsigned int	_decimation;
 	unsigned int	_reqOutputRate;

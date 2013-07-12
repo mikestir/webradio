@@ -1,7 +1,14 @@
 #ifndef DSPBLOCK_H_
 #define DSPBLOCK_H_
 
-#include <sys/time.h>
+
+// FIXME: Use config.h
+#define DSPBLOCK_PROFILE
+
+#ifdef DSPBLOCK_PROFILE
+#include <time.h>
+#include <stdint.h>
+#endif
 
 #include <vector>
 #include <string>
@@ -34,10 +41,13 @@ public:
 	unsigned int outputSampleRate() const { return _outputSampleRate; }
 	unsigned int inputChannels() const { return _inputChannels; }
 	unsigned int outputChannels() const { return _outputChannels; }
-	unsigned int totalIn() const { return _totalIn; }
-	unsigned int totalOut() const { return _totalOut; }
 	unsigned int decimation() const { return _decimation; }
 	unsigned int interpolation() const { return _interpolation; }
+#ifdef DSPBLOCK_PROFILE
+	uint64_t totalNanoseconds() const { return _totalNanoseconds; }
+	unsigned int totalIn() const { return _totalIn; }
+	unsigned int totalOut() const { return _totalOut; }
+#endif
 	bool isRunning() const { return _isRunning; }
 
 	const string& name() const { return _name; }
@@ -71,10 +81,13 @@ private:
 	const string		_type;
 	unsigned int 		_inputSampleRate;
 	unsigned int 		_inputChannels;
-	unsigned int		_totalIn; // frames
-	unsigned int		_totalOut; // frames
 	unsigned int		_decimation; // times
 	unsigned int		_interpolation; // times
+#ifdef DSPBLOCK_PROFILE
+	uint64_t			_totalNanoseconds;
+	unsigned int		_totalIn; // frames
+	unsigned int		_totalOut; // frames
+#endif
 	bool				_isRunning;
 
 	vector<sample_t>	buffer;

@@ -13,15 +13,12 @@
 #include "debug.h"
 #include "lowpass.h"
 
-/* Must be power of 2.  FIXME: Make runtime variable, add
- * power of 2 check to start()
- */
+/* FIXME: Make runtime variable */
 #define FIR_LENGTH 	64
 
 LowPass::LowPass(const string &name) : DspBlock(name, "LowPass"),
 	_firLength(FIR_LENGTH), spec(NULL), impulse(NULL),
 	_passband(0),
-	headpos(0),
 	decimationCount(0),
 	_decimation(0),
 	_reqOutputRate(DEFAULT_SAMPLE_RATE)
@@ -98,11 +95,8 @@ bool LowPass::init()
 		window[n] /= (float)_firLength;
 	}
 
-	/* Allocate memory for taps */
-	fir.resize(inputChannels());
-	for (vector<vector<float> >::iterator it = fir.begin(); it != fir.end(); ++it)
-		it->resize(_firLength);
-	headpos = 0;
+	/* Allocate memory for input history */
+	history.resize((_firLength - 1) * inputChannels());
 
 	/* Generate initial coefficients */
 	recalculate();
@@ -120,44 +114,42 @@ void LowPass::deinit()
 	/* Release vector memory */
 	vector<float>().swap(window);
 	vector<float>().swap(coeff);
-	for (vector<vector<float> >::iterator it = fir.begin(); it != fir.end(); ++it)
-		vector<float>().swap(*it);
+	vector<float>().swap(history);
 }
 
 bool LowPass::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
 {
-	const float *in = (const float*)inBuffer.data();
 	float *out = (float*)outBuffer.data();
-	unsigned int channels = inputChannels(); /* = outputChannels */
-	unsigned int insize = inBuffer.size();
-	unsigned int inframes = insize / channels;
+	unsigned int inframes = inBuffer.size() / inputChannels();
+	unsigned int historyLength = (_firLength - 1) * inputChannels();
 
-	while (inframes--) {
-		/* FIXME: Could store last _firLength-1 frames from previous
-		 * block and then read samples in-situ.  This would eliminate the
-		 * need for managing this ring buffer.
-		 */
-		for (unsigned int c = 0; c < channels; c++)
-			fir[c][headpos] = *in++;
-
+	for (unsigned int frame = 0; frame < inframes; ++frame) {
 		if (++decimationCount == _decimation) {
-			for (unsigned int c = 0; c < channels; c++)
+			for (unsigned int c = 0; c < outputChannels(); ++c)
 				out[c] = 0.0;
 
-			/* Generate output */
-			unsigned int idx = headpos;
-			for (unsigned int tap = 0; tap < _firLength; tap++) {
+			for (unsigned int tap = 0; tap < _firLength; ++tap) {
 				float weight = coeff[tap];
-				for (unsigned int c = 0; c < channels; c++) {
-					out[c] += weight * fir[c][idx];
+				for (unsigned int c = 0; c < outputChannels(); ++c) {
+					int idx = inputChannels() * (frame - tap) + c;
+					out[c] += weight *
+						(idx < 0) ? history[historyLength + idx] : inBuffer[idx];
 				}
-				idx = (idx - 1) & (_firLength - 1);
 			}
-			out += channels;
+
+			out += outputChannels();
 			decimationCount = 0;
 		}
+	}
 
-		headpos = (headpos + 1) & (_firLength - 1);
+	/* Store last firLength-1 input samples */
+	int inidx;
+	unsigned int outidx;
+	for (inidx = inBuffer.size() - historyLength, outidx = 0;
+			outidx < historyLength; ++inidx, ++outidx) {
+		history[outidx] = (inidx < 0) ?
+				history[historyLength + inidx] :
+				inBuffer[inidx];
 	}
 
 	return true;

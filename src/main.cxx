@@ -126,6 +126,13 @@ int main(int argc, char **argv)
 			LOG_DEBUG("%u Hz\n", (tuner->totalOut() - lastin) / 5);
 			last = now;
 			lastin = tuner->totalOut();
+			LOG_DEBUG("capture %lu ns/frame\n", tuner->totalNanoseconds() / tuner->totalIn());
+			LOG_DEBUG("waterfall %lu ns/frame\n", spectrum->totalNanoseconds() / spectrum->totalIn());
+			LOG_DEBUG("downconverter %lu ns/frame\n", dc1->totalNanoseconds() / dc1->totalIn());
+			LOG_DEBUG("channel filter %lu ns/frame\n", filt1->totalNanoseconds() / filt1->totalIn());
+			LOG_DEBUG("demod %lu ns/frame\n", demod->totalNanoseconds() / demod->totalIn());
+			LOG_DEBUG("audio filter %lu ns/frame\n", filt2->totalNanoseconds() / filt2->totalIn());
+
 		}
 	}
 

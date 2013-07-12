@@ -1,6 +1,5 @@
-#include <stdint.h>
-
 #include <vector>
+#include <string>
 #include <algorithm>
 
 #include "debug.h"
@@ -13,8 +12,11 @@ DspBlock::DspBlock(const string &name, const string &type) :
 			_type(type),
 			_inputSampleRate(DEFAULT_SAMPLE_RATE),
 			_inputChannels(DEFAULT_CHANNELS),
-			_totalIn(0), _totalOut(0),
 			_decimation(1), _interpolation(1),
+#ifdef DSPBLOCK_PROFILE
+			_totalNanoseconds(0),
+			_totalIn(0), _totalOut(0),
+#endif
 			_isRunning(false)
 {
 
@@ -87,7 +89,10 @@ bool DspBlock::start()
 		deinit();
 		return false;
 	}
+#ifdef DSPBLOCK_PROFILE
 	_totalIn = _totalOut = 0;
+	_totalNanoseconds = 0;
+#endif
 	_isRunning = true;
 
 	/* Configure and start downstream */
@@ -139,15 +144,25 @@ bool DspBlock::run(const vector<sample_t> &inBuffer)
 		buffer.resize(outframes * _outputChannels);
 	}
 
+#ifdef DSPBLOCK_PROFILE
+	timespec start, end;
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+#endif
+
 	/* Process */
 	if (!process(inBuffer, buffer)) {
 		LOG_ERROR("Pipeline failed at block %s:%s\n", this->type().c_str(), this->name().c_str());
 		return false;
 	}
 
-	/* Count frames for diagnostics */
+#ifdef DSPBLOCK_PROFILE
+	/* Profile counters */
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
+	_totalNanoseconds += (uint64_t)(end.tv_nsec - start.tv_nsec) +
+			(uint64_t)(end.tv_sec - start.tv_sec) * 1000000000ULL;
 	_totalIn += inframes;
 	_totalOut += outframes;
+#endif
 
 	/* Propagate result to all registered consumers */
 	for (vector<DspBlock*>::iterator it = consumers.begin(); it != consumers.end(); ++it)
