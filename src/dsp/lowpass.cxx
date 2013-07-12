@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <string>
+#include <algorithm>
 #include <fftw3.h>
 #include <math.h>
 
@@ -95,9 +96,6 @@ bool LowPass::init()
 		window[n] /= (float)_firLength;
 	}
 
-	/* Allocate memory for input history */
-	history.resize((_firLength - 1) * inputChannels());
-
 	/* Generate initial coefficients */
 	recalculate();
 
@@ -114,42 +112,40 @@ void LowPass::deinit()
 	/* Release vector memory */
 	vector<float>().swap(window);
 	vector<float>().swap(coeff);
-	vector<float>().swap(history);
+	vector<float>().swap(block);
 }
 
 bool LowPass::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
 {
+	unsigned int historySize = inputChannels() * (_firLength - 1);
+
+	/* Push new block into processing buffer, retaining _firLength - 1 frames
+	 * from the previous block.  This copy step simplifies the inner loop by
+	 * ensuring current and previous input samples are contiguous. */
+	if (block.size() != inBuffer.size() + historySize)
+		block.resize(inBuffer.size() + historySize);
+	vector<sample_t>::iterator it = block.begin();
+	it = copy(block.end() - historySize, block.end(), it);
+	copy(inBuffer.begin(), inBuffer.end(), it);
+
+	/* Clear output buffer */
+	fill(outBuffer.begin(), outBuffer.end(), 0.0);
+
+	float *in = (float*)block.data();
 	float *out = (float*)outBuffer.data();
-	unsigned int inframes = inBuffer.size() / inputChannels();
-	unsigned int historyLength = (_firLength - 1) * inputChannels();
-
-	for (unsigned int frame = 0; frame < inframes; ++frame) {
+	unsigned int nframes = inBuffer.size() / inputChannels();
+	while (nframes--) {
 		if (++decimationCount == _decimation) {
-			for (unsigned int c = 0; c < outputChannels(); ++c)
-				out[c] = 0.0;
-
-			for (unsigned int tap = 0; tap < _firLength; ++tap) {
-				float weight = coeff[tap];
-				for (unsigned int c = 0; c < outputChannels(); ++c) {
-					int idx = inputChannels() * (frame - tap) + c;
-					out[c] += weight *
-						(idx < 0) ? history[historyLength + idx] : inBuffer[idx];
-				}
-			}
-
-			out += outputChannels();
 			decimationCount = 0;
-		}
-	}
 
-	/* Store last firLength-1 input samples */
-	int inidx;
-	unsigned int outidx;
-	for (inidx = inBuffer.size() - historyLength, outidx = 0;
-			outidx < historyLength; ++inidx, ++outidx) {
-		history[outidx] = (inidx < 0) ?
-				history[historyLength + inidx] :
-				inBuffer[inidx];
+			float *inptr = in;
+			for (vector<float>::reverse_iterator it = coeff.rbegin();
+					it != coeff.rend(); ++it)
+				for (unsigned int c = 0; c < inputChannels(); ++c)
+					out[c] += (*it) * (*inptr++);
+			out += outputChannels();
+		}
+		in += inputChannels();
 	}
 
 	return true;
