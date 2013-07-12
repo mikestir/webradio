@@ -20,8 +20,7 @@
 LowPass::LowPass(const string &name) : DspBlock(name, "LowPass"),
 	_firLength(FIR_LENGTH), spec(NULL), impulse(NULL),
 	_passband(0),
-	decimationCount(0),
-	_decimation(0),
+	_reqDecimation(0),
 	_reqOutputRate(DEFAULT_SAMPLE_RATE)
 {
 
@@ -45,7 +44,7 @@ void LowPass::setDecimation(unsigned int n)
 	if (isRunning())
 		return;
 
-	_decimation = n;
+	_reqDecimation = n;
 	_reqOutputRate = 0;
 }
 
@@ -55,30 +54,23 @@ void LowPass::setOutputSampleRate(unsigned int hz)
 		return;
 
 	_reqOutputRate = hz;
-	_decimation = 0;
+	_reqDecimation = 0;
 }
 
 bool LowPass::init()
 {
-	/* Calculate required decimation rate based on whether the caller
-	 * asked for a specific value, or for a specific output rate */
+	/* Calculate required decimation ratio based on whether the caller
+	 * asked for a specific value, or for a specific output rate.
+	 * DspBlock will enforce an integer decimation ratio. */
 	if (_reqOutputRate > 0) {
 		_outputSampleRate = _reqOutputRate;
-		_decimation = inputSampleRate() / _outputSampleRate;
-	} else if (_decimation > 0) {
-		_outputSampleRate = inputSampleRate() / _decimation;
+	} else if (_reqDecimation > 0) {
+		_outputSampleRate = inputSampleRate() / _reqDecimation;
 	} else {
 		LOG_ERROR("Must specify either decimation or output rate\n");
 		return false;
 	}
 	_outputChannels = inputChannels();
-
-	/* Decimation must be integer */
-	if (_outputSampleRate * _decimation != inputSampleRate()) {
-		LOG_ERROR("Input rate must be integer multiple of output rate\n");
-		return false;
-	}
-	decimationCount = 0;
 
 	/* Set up FFTW for coefficient calculation */
 	/* FIXME: Can probably use the r2c_1d plan for better performance */
@@ -133,19 +125,16 @@ bool LowPass::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuf
 
 	float *in = (float*)block.data();
 	float *out = (float*)outBuffer.data();
-	unsigned int nframes = inBuffer.size() / inputChannels();
+	unsigned int nframes = outBuffer.size() / outputChannels();
+	unsigned int instep = inputChannels() * decimation();
 	while (nframes--) {
-		if (++decimationCount == _decimation) {
-			decimationCount = 0;
-
-			float *inptr = in;
-			for (vector<float>::reverse_iterator it = coeff.rbegin();
-					it != coeff.rend(); ++it)
-				for (unsigned int c = 0; c < inputChannels(); ++c)
-					out[c] += (*it) * (*inptr++);
-			out += outputChannels();
-		}
-		in += inputChannels();
+		float *inptr = in;
+		for (vector<float>::reverse_iterator it = coeff.rbegin();
+				it != coeff.rend(); ++it)
+			for (unsigned int c = 0; c < inputChannels(); ++c)
+				out[c] += (*it) * (*inptr++);
+		out += outputChannels();
+		in += instep;
 	}
 
 	return true;

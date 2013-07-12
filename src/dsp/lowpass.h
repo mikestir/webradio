@@ -16,7 +16,6 @@
 
 using namespace std;
 
-/* FIXME: Use decimation/interpolation values from DspBlock */
 class LowPass : public DspBlock
 {
 public:
@@ -25,7 +24,6 @@ public:
 
 	unsigned int passband() const { return _passband; }
 	void setPassband(unsigned int hz);
-	unsigned int decimation() const { return _decimation; }
 	void setDecimation(unsigned int n);
 	void setOutputSampleRate(unsigned int hz);
 
@@ -48,8 +46,7 @@ private:
 
 	/* Filter operation */
 	vector<sample_t>	block;
-	unsigned int	decimationCount;
-	unsigned int	_decimation;
+	unsigned int	_reqDecimation;
 	unsigned int	_reqOutputRate;
 };
 #endif /* FILTER_H_ */

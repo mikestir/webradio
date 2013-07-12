@@ -85,8 +85,8 @@ private:
 	unsigned int		_interpolation; // times
 #ifdef DSPBLOCK_PROFILE
 	uint64_t			_totalNanoseconds;
-	unsigned int		_totalIn; // frames
-	unsigned int		_totalOut; // frames
+	uint64_t			_totalIn; // frames
+	uint64_t			_totalOut; // frames
 #endif
 	bool				_isRunning;
 
