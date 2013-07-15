@@ -30,23 +30,26 @@ HttpRequestHandler* ApiHandler::factory()
 	return new ApiHandler();
 }
 
-unsigned short ApiHandler::handleRequest(const string &method, const string &path,
+unsigned short ApiHandler::handleRequest(const string &method, const vector<string> &wildcards,
 	const vector<char> &requestData, unsigned short status)
 {
 	vector<float> magn;
+	string path = wildcards[0];
+
+	LOG_DEBUG("path = %s\n", path.c_str());
 
 	if (method == "PUT") {
 		string dat(requestData.begin(), requestData.end());
-		if (path == "/tuner") {
+		if (path == "tuner") {
 			tuner->setCentreFrequency(atoi(dat.c_str()));
 			return MHD_HTTP_OK;
 		}
-		else if (path == "/dc") {
+		else if (path == "dc") {
 			dc1->setIF(atoi(dat.c_str()));
 			return MHD_HTTP_OK;
 		}
 #if 0
-		else if (path == "/filter") {
+		else if (path == "filter") {
 			filter->setPassband(atoi(dat.c_str()));
 			return MHD_HTTP_OK;
 		}
@@ -62,7 +65,7 @@ unsigned short ApiHandler::handleRequest(const string &method, const string &pat
 	spectrum->getSpectrum(magn.data());
 	
 	string out;
-	if (path == "/flot") {
+	if (path == "flot") {
 		stringstream s;
 		vector<float>::iterator it;
 		s << "[";
@@ -76,7 +79,7 @@ unsigned short ApiHandler::handleRequest(const string &method, const string &pat
 		}
 		s << "]";
 		out = s.str();
-	} else if (path == "/array") {
+	} else if (path == "array") {
 		stringstream s;
 		vector<float>::iterator it;
 		s << "[";

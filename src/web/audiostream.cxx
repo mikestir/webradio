@@ -122,7 +122,7 @@ void AudioStreamHandler::push(const vector<char> &data)
 	}
 }
 
-unsigned short AudioStreamHandler::handleRequest(const string &method, const string &path,
+unsigned short AudioStreamHandler::handleRequest(const string &method, const vector<string> &wildcards,
 		const vector<char> &requestData, unsigned short status)
 {
 	//AudioStreamManager::format format;
@@ -130,26 +130,13 @@ unsigned short AudioStreamHandler::handleRequest(const string &method, const str
 	if (method != "GET")
 		return MHD_HTTP_METHOD_NOT_ALLOWED;
 
-#if 0
-	/* Path determines format */
-	if (path == "/mp3") {
-		_contentType = "audio/mpeg";
-		format = AudioStreamManager::MP3;
-	} else if (path == "/ogg") {
-		_contentType = "audio/ogg";
-		format = AudioStreamManager::Vorbis;
-	} else {
-		return MHD_HTTP_NOT_FOUND;
-	}
-#else
 	/* Extract mountpoint from path */
-	mountpoint = path;
+	mountpoint = wildcards[0];
 	if (streams[mountpoint] == NULL) {
 		LOG_ERROR("Request for non-existent audio stream: %s\n", mountpoint.c_str());
 		return MHD_HTTP_NOT_FOUND;
 	}
 	_contentType = "audio/mpeg";
-#endif
 
 	if (pipe(pipefd) < 0) {
 		LOG_ERROR("pipe error\n");

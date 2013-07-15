@@ -24,7 +24,7 @@ public:
 	static HttpRequestHandler *factory();
 
 	void push(const vector<char> &data);
-	unsigned short handleRequest(const string &method, const string &path,
+	unsigned short handleRequest(const string &method, const vector<string> &wildcards,
 			const vector<char> &requestData, unsigned short status);
 protected:
 	ssize_t contentReader(uint64_t pos, char *buf, size_t max);

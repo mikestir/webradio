@@ -14,7 +14,7 @@ public:
 	~ApiHandler() {}
 	static HttpRequestHandler *factory();
 
-	unsigned short handleRequest(const string &method, const string &path,
+	unsigned short handleRequest(const string &method, const vector<string> &wildcards,
 			const vector<char> &requestData, unsigned short status);
 private:
 

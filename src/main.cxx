@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 	filt2->setOutputSampleRate(48000);
 
 	SampleSink *sink = new AudioStreamManager();
-	sink->setSubdevice("/stream1");
+	sink->setSubdevice("stream1");
 
 	tuner->connect(dc1);
 	dc1->connect(filt1);
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
 	filt4->setOutputSampleRate(248000);
 
 	SampleSink *sink2 = new AudioStreamManager();
-	sink2->setSubdevice("/stream2");
+	sink2->setSubdevice("stream2");
 
 	tuner->connect(dc2);
 	dc2->connect(filt3);
@@ -111,9 +111,9 @@ int main(int argc, char **argv)
 	tuner->start();
 
 	HttpServer *h = new HttpServer(8080);
-	h->registerHandler("/audio", AudioStreamHandler::factory);
-	h->registerHandler("/static", FileHandler::factory);
-	h->registerHandler("/api", ApiHandler::factory);
+	h->registerHandler("audio/*", AudioStreamHandler::factory);
+	h->registerHandler("static/**", FileHandler::factory);
+	h->registerHandler("api/**", ApiHandler::factory);
 	h->start();
 
 

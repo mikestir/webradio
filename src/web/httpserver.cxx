@@ -45,7 +45,7 @@ HttpRequestHandler* HttpErrorHandler::factory()
 	return new HttpErrorHandler();
 }
 
-unsigned short HttpErrorHandler::handleRequest(const string &method, const string &path,
+unsigned short HttpErrorHandler::handleRequest(const string &method, const vector<string> &wildcards,
 		const vector<char> &requestData, unsigned short status)
 {
 	stringstream ss;
@@ -85,7 +85,7 @@ int HttpServer::handlerCallback(void *arg,
 	int rc;
 	unsigned int status = MHD_HTTP_OK;
 	const char *host;
-	string handlerPath;
+	vector<string> url_wildcards;
 
 	/* Create vector for upload buffer if required */
 	if (*ptr == NULL) {
@@ -118,9 +118,12 @@ int HttpServer::handlerCallback(void *arg,
 	LOG_DEBUG("%s %s\n", method, path);
 //	LOG_DEBUG("Request data:\n%.*s\n", upload_buffer->size(), upload_buffer->data());
 
-	handler_factory = self->findHandler(path, handlerPath);
+	handler_factory = self->findHandler(path, url_wildcards);
 	if (handler_factory) {
 		handler = handler_factory();
+		LOG_DEBUG("Wildcards:\n");
+		for (vector<string>::iterator it = url_wildcards.begin(); it != url_wildcards.end(); ++it)
+			LOG_DEBUG("%s\n", it->c_str());
 	} else {
 		status = MHD_HTTP_NOT_FOUND;
 	}
@@ -139,7 +142,7 @@ error_response:
 			HttpRequestHandler::populate_args, handler);
 
 	/* Call the handler, after which we can get rid of the POST buffer */
-	status = handler->handleRequest(string(method), handlerPath, *upload_buffer, status);
+	status = handler->handleRequest(string(method), url_wildcards, *upload_buffer, status);
 	if (upload_buffer)
 		delete upload_buffer;
 	*ptr = NULL;
@@ -270,32 +273,59 @@ bool HttpServer::start()
 	return true;
 }
 
-void HttpServer::registerHandler(const string &path, HttpRequestHandlerFactory factory)
+void HttpServer::registerHandler(const string &pattern, HttpRequestHandlerFactory factory)
 {
-	LOG_DEBUG("Registered handler for path: %s\n", path.c_str());
-	handlerMap[path] = factory;
+	istringstream iss(pattern);
+	string part;
+	HttpUrlTree *node = &handlerTree;
+
+	/* Split path on slashes and build node tree */
+	while (std::getline(iss, part, '/'))
+		node = &node->next[part];
+	node->setHandler(factory);
+	LOG_DEBUG("Registered handler for URL: %s\n", pattern.c_str());
 }
 
-HttpRequestHandlerFactory HttpServer::findHandler(const string &path, string &handlerPath)
+HttpRequestHandlerFactory HttpServer::findHandler(const string &path, vector<string> &wildcards)
 {
-	HttpRequestHandlerFactory factory;
-	string pathcopy(path);
-	size_t slashpos = path.length();
+	istringstream iss(path);
+	string part;
+	HttpUrlTree *node = &handlerTree;
 
-	/* Attempts to match a handler by stripping layers off the URL.
-	 * The most specific handler will match first */
-	do {
-		pathcopy.resize(slashpos);
-		handlerPath = path.substr(slashpos);
+	wildcards.clear();
 
-		LOG_DEBUG("Trying %s\n", pathcopy.c_str());
-		factory = handlerMap[pathcopy];
-		if (factory) {
-			LOG_DEBUG("Found.  Path = %s\n", handlerPath.c_str());
-			break;
+	/* Split requested URL on slashes and walk tree for a match */
+	while (std::getline(iss, part, '/')) {
+		if (part.empty())
+			continue; // skip null path components
+
+		if (node->next.count(part) == 0) {
+			if (node->next.count("*") == 0) {
+				if (node->next.count("**") == 0) {
+					return NULL; // No match
+				} else {
+					/* Double wildcard matches the rest of the URL.
+					 * Stop scanning and return the remainder as the final
+					 * wildcard component. */
+					string remainder;
+					getline(iss, remainder);
+					if (remainder.empty())
+						/* No further path components after this one - trailing
+						 * slash is suppressed */
+						wildcards.push_back(part);
+					else
+						wildcards.push_back(part + "/" + remainder);
+					return node->next.at("**").handler();
+				}
+			} else {
+				// Matches on wildcard
+				wildcards.push_back(part);
+				node = &node->next.at("*");
+			}
+		} else {
+			// Matches on specific pattern
+			node = &node->next.at(part);
 		}
-		slashpos = pathcopy.find_last_of('/');
-	} while (slashpos != string::npos);
-
-	return factory;
+	}
+	return node->handler();
 }

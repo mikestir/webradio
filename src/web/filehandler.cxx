@@ -33,7 +33,7 @@ HttpRequestHandler* FileHandler::factory()
 	return new FileHandler();
 }
 
-unsigned short FileHandler::handleRequest(const string &method, const string &path,
+unsigned short FileHandler::handleRequest(const string &method, const vector<string> &wildcards,
 	const vector<char> &requestData, unsigned short status)
 {
 	string ct, mypath; // writeable copy
@@ -43,7 +43,7 @@ unsigned short FileHandler::handleRequest(const string &method, const string &pa
 		return MHD_HTTP_METHOD_NOT_ALLOWED;
 
 	/* Prepend local path */
-	mypath = DEFAULT_DIR + path;
+	mypath = DEFAULT_DIR "/" + wildcards[0];
 
 	/* Remove all .. in path */
 	while ((pos = mypath.find("..")) < mypath.length()) {
