@@ -10,11 +10,13 @@
 #include <signal.h>
 #include <sys/time.h>
 
+#include "debug.h"
+
 #include "httpserver.h"
 #include "audiostream.h"
 #include "filehandler.h"
 #include "apihandler.h"
-#include "debug.h"
+#include "redirecthandler.h"
 
 #include "pulseaudio.h"
 #include "rtlsdrtuner.h"
@@ -23,6 +25,7 @@
 #include "randsource.h"
 #include "downconverter.h"
 #include "amdemod.h"
+
 
 static volatile bool quit = false;
 
@@ -111,8 +114,19 @@ int main(int argc, char **argv)
 	tuner->start();
 
 	HttpServer *h = new HttpServer(8080);
-	h->registerHandler("audio/*", AudioStreamHandler::factory);
+	h->registerHandler("", RedirectHandler::factory, new string("/static/ui.html"));
+	h->registerHandler("tuners/*/receivers", RedirectHandler::factory, new string("/receivers?tuner_id=$1"));
+	h->registerHandler("receivers/*/audio.mp3", RedirectHandler::factory, new string("/audio/$1.mp3"));
+	h->registerHandler("receivers/*/audio.ogg", RedirectHandler::factory, new string("/audio/$1.ogg"));
 	h->registerHandler("static/**", FileHandler::factory);
+	h->registerHandler("audio/*", AudioStreamHandler::factory);
+#if 0
+	h->registerHandler("config", ConfigHandler::factory);
+	h->registerHandler("tuners/*", TunerListHandler::factory);
+	h->registerHandler("tuners/*/control", TunerControlHandler::factory);
+	h->registerHandler("tuners/*/peaks", PeaksHandler::factory);
+	h->registerHandler("tuners/*/waterfall", WaterfallHandler::factory);
+#endif
 	h->registerHandler("api/**", ApiHandler::factory);
 	h->start();
 

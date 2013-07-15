@@ -11,11 +11,15 @@ class ApiHandler : public HttpRequestHandler
 {
 public:
 	ApiHandler();
-	~ApiHandler() {}
-	static HttpRequestHandler *factory();
+	~ApiHandler();
+	static HttpRequestHandler *factory() {
+		return new ApiHandler();
+	}
 
-	unsigned short handleRequest(const string &method, const vector<string> &wildcards,
-			const vector<char> &requestData, unsigned short status);
+	const string allows() { return "GET, PUT"; }
+
+	unsigned short doGet(const vector<string> &wildcards, const vector<char> &requestData);
+	unsigned short doPut(const vector<string> &wildcards, const vector<char> &requestData);
 private:
 
 };

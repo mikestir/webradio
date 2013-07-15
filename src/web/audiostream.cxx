@@ -108,11 +108,6 @@ AudioStreamHandler::~AudioStreamHandler()
 		streams[mountpoint]->deregisterConsumer(this);
 }
 
-HttpRequestHandler* AudioStreamHandler::factory()
-{
-	return new AudioStreamHandler();
-}
-
 void AudioStreamHandler::push(const vector<char> &data)
 {
 	int size = (int)data.size();
@@ -122,13 +117,9 @@ void AudioStreamHandler::push(const vector<char> &data)
 	}
 }
 
-unsigned short AudioStreamHandler::handleRequest(const string &method, const vector<string> &wildcards,
-		const vector<char> &requestData, unsigned short status)
+unsigned short AudioStreamHandler::doGet(const vector<string> &wildcards, const vector<char> &requestData)
 {
 	//AudioStreamManager::format format;
-
-	if (method != "GET")
-		return MHD_HTTP_METHOD_NOT_ALLOWED;
 
 	/* Extract mountpoint from path */
 	mountpoint = wildcards[0];
@@ -136,8 +127,6 @@ unsigned short AudioStreamHandler::handleRequest(const string &method, const vec
 		LOG_ERROR("Request for non-existent audio stream: %s\n", mountpoint.c_str());
 		return MHD_HTTP_NOT_FOUND;
 	}
-	_contentType = "audio/mpeg";
-
 	if (pipe(pipefd) < 0) {
 		LOG_ERROR("pipe error\n");
 		return MHD_HTTP_INTERNAL_SERVER_ERROR;
@@ -146,6 +135,7 @@ unsigned short AudioStreamHandler::handleRequest(const string &method, const vec
 	fcntl(pipefd[1], F_SETFL, O_NONBLOCK);
 
 	streams[mountpoint]->registerConsumer(this);
+	_contentType = "audio/mpeg";
 	_isPersistent = true;
 	return MHD_HTTP_OK;
 }

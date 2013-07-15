@@ -13,6 +13,7 @@ webradio_SOURCES = main.cxx \
 	web/apihandler.cxx \
 	web/audiostream.cxx \
 	web/filehandler.cxx \
+	web/redirecthandler.cxx \
 	web/httpserver.cxx \
 	web/mp3encoder.cxx \
 	io/randsource.cxx \

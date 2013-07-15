@@ -21,11 +21,14 @@ class AudioStreamHandler : public HttpRequestHandler
 public:
 	AudioStreamHandler();
 	~AudioStreamHandler();
-	static HttpRequestHandler *factory();
+	static HttpRequestHandler *factory() {
+		return new AudioStreamHandler();
+	}
+
+	const string allows() { return "GET"; }
 
 	void push(const vector<char> &data);
-	unsigned short handleRequest(const string &method, const vector<string> &wildcards,
-			const vector<char> &requestData, unsigned short status);
+	unsigned short doGet(const vector<string> &wildcards, const vector<char> &requestData);
 protected:
 	ssize_t contentReader(uint64_t pos, char *buf, size_t max);
 

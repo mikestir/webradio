@@ -38,15 +38,7 @@ int HttpRequestHandler::populate_args(void *self, enum MHD_ValueKind kind,
 	return MHD_YES;
 }
 
-/*******************************/
-
-HttpRequestHandler* HttpErrorHandler::factory()
-{
-	return new HttpErrorHandler();
-}
-
-unsigned short HttpErrorHandler::handleRequest(const string &method, const vector<string> &wildcards,
-		const vector<char> &requestData, unsigned short status)
+void HttpRequestHandler::doError(unsigned short status)
 {
 	stringstream ss;
 
@@ -62,8 +54,6 @@ unsigned short HttpErrorHandler::handleRequest(const string &method, const vecto
 	string response = ss.str();
 	_data.insert(_data.end(), response.begin(), response.end());
 	_contentType = "text/html";
-
-	return status; // pass through
 }
 
 /*******************************/
@@ -78,13 +68,12 @@ int HttpServer::handlerCallback(void *arg,
 		void **ptr)
 {
 	HttpServer *self = (HttpServer*)arg;
-	vector<char> *upload_buffer;
-	HttpRequestHandlerFactory handler_factory;
 	HttpRequestHandler *handler = NULL;
 	struct MHD_Response *response;
 	int rc;
-	unsigned int status = MHD_HTTP_OK;
+	unsigned short status = MHD_HTTP_OK;
 	const char *host;
+	vector<char> *upload_buffer;
 	vector<string> url_wildcards;
 
 	/* Create vector for upload buffer if required */
@@ -109,28 +98,22 @@ int HttpServer::handlerCallback(void *arg,
 	if (host == NULL) {
 		LOG_ERROR("Missing HTTP Host header\n");
 		status = MHD_HTTP_BAD_REQUEST;
-		goto error_response;
 	}
 
 	/* FIXME: Check Accept header (for GET) - return 406 Not Acceptable,
 	 * Check Content-type header (for POST) - return 415 Unsupported Media Type */
 
 	LOG_DEBUG("%s %s\n", method, path);
-//	LOG_DEBUG("Request data:\n%.*s\n", upload_buffer->size(), upload_buffer->data());
-
-	handler_factory = self->findHandler(path, url_wildcards);
-	if (handler_factory) {
-		handler = handler_factory();
-		LOG_DEBUG("Wildcards:\n");
-		for (vector<string>::iterator it = url_wildcards.begin(); it != url_wildcards.end(); ++it)
-			LOG_DEBUG("%s\n", it->c_str());
-	} else {
-		status = MHD_HTTP_NOT_FOUND;
+	if (status == MHD_HTTP_OK) {
+		/* Look up handler for requested URL */
+		handler = self->findHandler(path, url_wildcards);
+		if (handler == NULL)
+			status = MHD_HTTP_NOT_FOUND;
 	}
-error_response:
+
 	if (handler == NULL) {
-		/* Always use default handler to return error messages */
-		handler = HttpErrorHandler::factory();
+		/* Use default handler */
+		handler = HttpRequestHandler::factory();
 	}
 
 	/* Populate query parameters for request handler */
@@ -141,16 +124,30 @@ error_response:
 	MHD_get_connection_values(conn, MHD_GET_ARGUMENT_KIND,
 			HttpRequestHandler::populate_args, handler);
 
-	/* Call the handler, after which we can get rid of the POST buffer */
-	status = handler->handleRequest(string(method), url_wildcards, *upload_buffer, status);
-	if (upload_buffer)
-		delete upload_buffer;
-	*ptr = NULL;
+	/* Don't call the handler if a method already occurred */
+	if (status == MHD_HTTP_OK) {
+		string strmethod(method);
+		if (strmethod == "GET")
+			status = handler->doGet(url_wildcards, *upload_buffer);
+		else if (strmethod == "PUT")
+			status = handler->doPut(url_wildcards, *upload_buffer);
+		else if (strmethod == "POST")
+			status = handler->doPost(url_wildcards, *upload_buffer);
+		else if (strmethod == "DELETE")
+			status = handler->doDelete(url_wildcards, *upload_buffer);
+		else
+			status = MHD_HTTP_METHOD_NOT_ALLOWED;
+	}
+
+	if (status >= 300) {
+		/* Generate error page instead */
+		handler->doError(status);
+	}
 
 	/* Build response */
 	LOG_DEBUG("status = %u\n", status);
 	if (handler->isPersistent()) {
-		/* Arrange for callback */
+		/* The handler wants to be called back (streaming) */
 		response = MHD_create_response_from_callback(
 				MHD_SIZE_UNKNOWN, 512,
 				&HttpRequestHandler::contentReaderCallback,
@@ -196,39 +193,16 @@ error_response:
 	MHD_add_response_header(response, MHD_HTTP_HEADER_CONNECTION, "keep-alive");
 	MHD_add_response_header(response, MHD_HTTP_HEADER_SERVER, HTTP_SERVER_NAME);
 
-	/* FIXME: Handlers need to tell us what methods they support for a
-	 * particular URL */
-#if 0
-	/* If a bad method was requested than add the Allow header based on the handlers
-	 * defined for the entity */
-	if (status == MHD_HTTP_METHOD_NOT_ALLOWED) {
-		char allow[32] = {0};
-		char *allowptr = allow;
+	/* If we return 405 then we have to include an Allows: header */
+	if (status == MHD_HTTP_METHOD_NOT_ALLOWED)
+		MHD_add_response_header(response, MHD_HTTP_HEADER_ALLOW, handler->allows(url_wildcards).c_str());
 
-		if (ent->get_handler)
-			allowptr += sprintf(allowptr, "GET, ");
-		if (ent->put_handler)
-			allowptr += sprintf(allowptr, "PUT, ");
-		if (ent->post_handler)
-			allowptr += sprintf(allowptr, "POST, ");
-		if (ent->delete_handler)
-			allowptr += sprintf(allowptr, "DELETE, ");
-		if (allow[0] == '\0') {
-			/* This entity doesn't support anything! */
-			CRITICAL("Entity %s has no methods!\n", ent->name);
-			status = MHD_HTTP_NOT_FOUND;
-		} else {
-			/* Remove last ", " */
-			allowptr[-2] = '\0';
-
-			DEBUG("Supported methods: %s\n", allow);
-			MHD_add_response_header(response, MHD_HTTP_HEADER_ALLOW, allow);
-		}
-	}
-#endif
-
+	/* Clean up */
 	if (!handler->isPersistent())
-		delete handler;
+		delete handler; // Handler can ask to stick around (for streaming), else we delete it
+	if (upload_buffer)
+		delete upload_buffer;
+	*ptr = NULL;
 
 	/* Send the response */
 	rc = MHD_queue_response(conn, status, response);
@@ -273,7 +247,7 @@ bool HttpServer::start()
 	return true;
 }
 
-void HttpServer::registerHandler(const string &pattern, HttpRequestHandlerFactory factory)
+void HttpServer::registerHandler(const string &pattern, HttpRequestHandlerFactory factory, void *arg)
 {
 	istringstream iss(pattern);
 	string part;
@@ -282,11 +256,11 @@ void HttpServer::registerHandler(const string &pattern, HttpRequestHandlerFactor
 	/* Split path on slashes and build node tree */
 	while (std::getline(iss, part, '/'))
 		node = &node->next[part];
-	node->setHandler(factory);
+	node->setHandler(factory, arg);
 	LOG_DEBUG("Registered handler for URL: %s\n", pattern.c_str());
 }
 
-HttpRequestHandlerFactory HttpServer::findHandler(const string &path, vector<string> &wildcards)
+HttpRequestHandler* HttpServer::findHandler(const string &path, vector<string> &wildcards)
 {
 	istringstream iss(path);
 	string part;
@@ -315,7 +289,8 @@ HttpRequestHandlerFactory HttpServer::findHandler(const string &path, vector<str
 						wildcards.push_back(part);
 					else
 						wildcards.push_back(part + "/" + remainder);
-					return node->next.at("**").handler();
+					node = &node->next.at("**");
+					break;
 				}
 			} else {
 				// Matches on wildcard
@@ -327,5 +302,14 @@ HttpRequestHandlerFactory HttpServer::findHandler(const string &path, vector<str
 			node = &node->next.at(part);
 		}
 	}
-	return node->handler();
+
+	HttpRequestHandler *handler = NULL;
+	if (node->factory()) {
+		/* Instantiate a handler using the factory and set its argument
+		 * for those handlers that use it */
+		handler = (node->factory())();
+		handler->setArg(node->arg());
+	}
+
+	return handler;
 }

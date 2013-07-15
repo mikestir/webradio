@@ -1,12 +1,12 @@
 /*
- * filehandler.h
+ * redirecthandler.h
  *
- *  Created on: 20 Jun 2013
+ *  Created on: 15 Jul 2013
  *      Author: mike
  */
 
-#ifndef FILEHANDLER_H_
-#define FILEHANDLER_H_
+#ifndef REDIRECTHANDLER_H_
+#define REDIRECTHANDLER_H_
 
 #include <string>
 #include <vector>
@@ -14,20 +14,18 @@
 
 #include "httpserver.h"
 
-class FileHandler : public HttpRequestHandler
+class RedirectHandler : public HttpRequestHandler
 {
 public:
-	FileHandler();
-	~FileHandler();
+	RedirectHandler();
+	~RedirectHandler();
 	static HttpRequestHandler *factory() {
-		return new FileHandler();
+		return new RedirectHandler();
 	}
 
 	const string allows() { return "GET"; }
 
 	unsigned short doGet(const vector<string> &wildcards, const vector<char> &requestData);
-private:
-	map<string, string> mimeTypes;
 };
 
-#endif /* FILEHANDLER_H_ */
+#endif /* REDIRECTHANDLER_H_ */

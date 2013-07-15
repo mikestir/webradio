@@ -16,7 +16,7 @@
 
 #define DEFAULT_DIR		"html"
 
-FileHandler::FileHandler()
+FileHandler::FileHandler() : HttpRequestHandler()
 {
 	/* Init MIME type list */
 	mimeTypes[".html"] = "text/html";
@@ -28,19 +28,15 @@ FileHandler::FileHandler()
 	mimeTypes[".png"] = "image/png";
 }
 
-HttpRequestHandler* FileHandler::factory()
+FileHandler::~FileHandler()
 {
-	return new FileHandler();
+
 }
 
-unsigned short FileHandler::handleRequest(const string &method, const vector<string> &wildcards,
-	const vector<char> &requestData, unsigned short status)
+unsigned short FileHandler::doGet(const vector<string> &wildcards, const vector<char> &requestData)
 {
 	string ct, mypath; // writeable copy
 	size_t pos;
-
-	if (method != "GET")
-		return MHD_HTTP_METHOD_NOT_ALLOWED;
 
 	/* Prepend local path */
 	mypath = DEFAULT_DIR "/" + wildcards[0];

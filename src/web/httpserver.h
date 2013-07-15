@@ -30,37 +30,73 @@ class HttpRequestHandler;
 class HttpRequestHandler {
 public:
 	HttpRequestHandler() :
+		_arg(NULL),
 		_contentType("text/plain"),
 		_isPersistent(false) {}
 	virtual ~HttpRequestHandler() {}
-	static HttpRequestHandler *factory();
 
-	/*!
-	 * \brief HTTP request handler
-	 * \param method		HTTP method (verb) e.g. GET, POST, PUT, DELETE
-	 * \param wildcards		Vector containing URL parts matched by wildcards
-	 * \param requestData	Any data sent with the request (e.g. for POST)
-	 * \param status		Current status, should be 200 but may have
-	 * 						already been set to some error condition.  Really
-	 * 						only of use to error handlers.
-	 * \return				New status
-	 */
-	virtual unsigned short handleRequest(const string &method, const vector<string> &wildcards,
-				const vector<char> &requestData, unsigned short status) {
-		return MHD_HTTP_METHOD_NOT_ALLOWED;
+	static HttpRequestHandler *factory() {
+		return new HttpRequestHandler();
 	}
 
-	const bool isPersistent() const { return _isPersistent; }
-	const vector<char>& response() const { return _data; }
+	/*!
+	 * \brief List of allowable methods for this handler, returned in Allows: header
+	 */
+	virtual const string allows(const vector<string> &wildcards) { return ""; }
+
+	/*!
+	 * \brief HTTP GET handler
+	 * \param wildcards		Vector containing URL parts matched by wildcards
+	 * \param requestData	Any data sent with the request (e.g. for POST)
+	 * \return				HTTP status code
+	 */
+	virtual unsigned short doGet(const vector<string> &wildcards, const vector<char> &requestData) { return MHD_HTTP_METHOD_NOT_ALLOWED; }
+
+	/*!
+	 * \brief HTTP PUT handler
+	 * \param wildcards		Vector containing URL parts matched by wildcards
+	 * \param requestData	Any data sent with the request (e.g. for POST)
+	 * \return				HTTP status code
+	 */
+	virtual unsigned short doPut(const vector<string> &wildcards, const vector<char> &requestData) { return MHD_HTTP_METHOD_NOT_ALLOWED; }
+
+	/*!
+	 * \brief HTTP POST handler
+	 * \param wildcards		Vector containing URL parts matched by wildcards
+	 * \param requestData	Any data sent with the request (e.g. for POST)
+	 * \return				HTTP status code
+	 */
+	virtual unsigned short doPost(const vector<string> &wildcards, const vector<char> &requestData) { return MHD_HTTP_METHOD_NOT_ALLOWED; }
+
+	/*!
+	 * \brief HTTP DELETE handler
+	 * \param wildcards		Vector containing URL parts matched by wildcards
+	 * \param requestData	Any data sent with the request (e.g. for POST)
+	 * \return				HTTP status code
+	 */
+	virtual unsigned short doDelete(const vector<string> &wildcards, const vector<char> &requestData) { return MHD_HTTP_METHOD_NOT_ALLOWED; }
+
+	/*!
+	 * \brief Handler called to generate error page in the event of a failure status code (>=300)
+	 */
+	void doError(unsigned short status);
+
+	void* arg() { return _arg; }
+	void setArg(void *arg) { _arg = arg; }
+
+	const map<string, string>& requestHeaders() const { return _requestHeaders; }
+	const map<string, string>& requestArgs() const { return _requestArgs; }
+	const map<string, string>& requestCookies() const { return _requestCookies; }
 	const map<string, string>& responseHeaders() const { return _responseHeaders; }
+	const vector<char>& response() const { return _data; }
 	const string& contentType() const { return _contentType; }
 	const string& location() const { return _location; }
+	const bool isPersistent() const { return _isPersistent; }
 
 	/* Callback for populating header and get argument maps prior to
 	 * calling handleRequest */
 	static int populate_args(void *self, enum MHD_ValueKind kind,
 		const char *key, const char *value);
-
 	/* Static callbacks for access to persistent (streaming) handlers */
 	static ssize_t contentReaderCallback(void *self, uint64_t pos, char *buf, size_t max) {
 		return ((HttpRequestHandler*)self)->contentReader(pos, buf, max);
@@ -71,15 +107,17 @@ public:
 	}
 
 protected:
+	void *_arg;
+
 	map<string, string> _requestHeaders;
 	map<string, string> _requestArgs;
 	map<string, string> _requestCookies;
 
-	vector<char> _data;
 	map<string, string> _responseHeaders;
+	vector<char> _data;
 	string _contentType;
-	bool _isPersistent;
 	string _location;
+	bool _isPersistent;
 
 	/* For libmicrohttpd running in threaded mode this must block if
 	 * no data is available */
@@ -89,27 +127,21 @@ protected:
 };
 typedef HttpRequestHandler* (*HttpRequestHandlerFactory)(void);
 
-class HttpErrorHandler : public HttpRequestHandler {
-public:
-	HttpErrorHandler() : HttpRequestHandler() {}
-	static HttpRequestHandler *factory();
-
-	unsigned short handleRequest(const string &method, const vector<string> &wildcards,
-			const vector<char> &requestData, unsigned short status);
-};
-
 class HttpUrlTree;
 class HttpUrlTree {
 public:
-	HttpUrlTree() : _handler(NULL) {}
+	HttpUrlTree() : _factory(NULL), _arg(NULL) {}
 	~HttpUrlTree() {}
 
-	HttpRequestHandlerFactory handler() { return _handler; }
-	void setHandler(const HttpRequestHandlerFactory handler) { _handler = handler; }
+	HttpRequestHandlerFactory factory() { return _factory; }
+	void* arg() { return _arg; }
+	void setHandler(const HttpRequestHandlerFactory factory,
+			void *arg = NULL) { _factory = factory; _arg = arg; }
 
 	map<string, HttpUrlTree> next;
 private:
-	HttpRequestHandlerFactory _handler;
+	HttpRequestHandlerFactory _factory;
+	void *_arg;
 };
 
 class HttpServer {
@@ -124,10 +156,11 @@ public:
 	 * 					match one path component, and a double asterisk will
 	 * 					match the remainder of the URL.
 	 */
-	void registerHandler(const string &pattern, HttpRequestHandlerFactory factory);
+	void registerHandler(const string &pattern, HttpRequestHandlerFactory factory,
+			void *arg = NULL);
 
 private:
-	HttpRequestHandlerFactory findHandler(const string &path, vector<string> &wildcards);
+	HttpRequestHandler* findHandler(const string &path, vector<string> &wildcards);
 
 	static int handlerCallback(void *arg,
 		struct MHD_Connection *conn,

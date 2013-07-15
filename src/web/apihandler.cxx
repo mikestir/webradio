@@ -4,7 +4,6 @@
 #include <vector>
 #include <cmath>
 
-// FIXME: all C standard headers should be called as <cname> in C++
 #include <stdlib.h>
 #include "apihandler.h"
 #include "debug.h"
@@ -20,46 +19,22 @@ extern SpectrumSink *spectrum;
 extern Tuner* tuner;
 extern DownConverter *dc1;
 
-ApiHandler::ApiHandler()
+ApiHandler::ApiHandler() : HttpRequestHandler()
 {
 
 }
 
-HttpRequestHandler* ApiHandler::factory()
+ApiHandler::~ApiHandler()
 {
-	return new ApiHandler();
+
 }
 
-unsigned short ApiHandler::handleRequest(const string &method, const vector<string> &wildcards,
-	const vector<char> &requestData, unsigned short status)
+unsigned short ApiHandler::doGet(const vector<string> &wildcards, const vector<char> &requestData)
 {
 	vector<float> magn;
 	string path = wildcards[0];
 
 	LOG_DEBUG("path = %s\n", path.c_str());
-
-	if (method == "PUT") {
-		string dat(requestData.begin(), requestData.end());
-		if (path == "tuner") {
-			tuner->setCentreFrequency(atoi(dat.c_str()));
-			return MHD_HTTP_OK;
-		}
-		else if (path == "dc") {
-			dc1->setIF(atoi(dat.c_str()));
-			return MHD_HTTP_OK;
-		}
-#if 0
-		else if (path == "filter") {
-			filter->setPassband(atoi(dat.c_str()));
-			return MHD_HTTP_OK;
-		}
-#endif
-
-		return MHD_HTTP_NOT_FOUND;
-	}
-
-	if (method != "GET")
-		return MHD_HTTP_METHOD_NOT_ALLOWED;
 
 	magn.resize(spectrum->fftSize());
 	spectrum->getSpectrum(magn.data());
@@ -94,9 +69,36 @@ unsigned short ApiHandler::handleRequest(const string &method, const vector<stri
 		}
 		s << "]";
 		out = s.str();
+	} else {
+		return MHD_HTTP_NOT_FOUND;
 	}
 		
 	_contentType = "application/json";
 	_data.insert(_data.end(), out.begin(), out.end());
 	return MHD_HTTP_OK;
+}
+
+unsigned short ApiHandler::doPut(const vector<string> &wildcards, const vector<char> &requestData)
+{
+	string path = wildcards[0];
+	string dat(requestData.begin(), requestData.end());
+
+	LOG_DEBUG("path = %s\n", path.c_str());
+
+	if (path == "tuner") {
+		tuner->setCentreFrequency(atoi(dat.c_str()));
+		return MHD_HTTP_OK;
+	}
+	else if (path == "dc") {
+		dc1->setIF(atoi(dat.c_str()));
+		return MHD_HTTP_OK;
+	}
+#if 0
+	else if (path == "filter") {
+		filter->setPassband(atoi(dat.c_str()));
+		return MHD_HTTP_OK;
+	}
+#endif
+
+	return MHD_HTTP_NOT_FOUND;
 }
