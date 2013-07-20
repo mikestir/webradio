@@ -8,11 +8,16 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <cmath>
+
 #include <fftw3.h>
-#include <math.h>
 
 #include "debug.h"
 #include "lowpass.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 /* FIXME: Make runtime variable */
 #define FIR_LENGTH 	64

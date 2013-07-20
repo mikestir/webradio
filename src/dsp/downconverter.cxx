@@ -1,4 +1,5 @@
-#include <math.h>
+#include <cmath>
+
 #include <stdint.h>
 
 #include "debug.h"

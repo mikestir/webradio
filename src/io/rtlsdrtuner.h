@@ -23,6 +23,9 @@ class RtlSdrTuner : public Tuner
 public:
 	RtlSdrTuner(const string &name = "<undefined>");
 	virtual ~RtlSdrTuner();
+	static Tuner* factory(const string &name = "<undefined>") {
+		return new RtlSdrTuner(name);
+	}
 
 	float gainDB();
 

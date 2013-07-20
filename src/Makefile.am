@@ -10,8 +10,13 @@ AM_CXXFLAGS = -Wall -Werror \
 
 bin_PROGRAMS = webradio
 webradio_SOURCES = main.cxx \
-	web/apihandler.cxx \
+	radio.cxx \
 	web/audiostream.cxx \
+	web/confighandler.cxx \
+	web/tunerhandler.cxx \
+	web/tunercontrolhandler.cxx \
+	web/receiverhandler.cxx \
+	web/waterfallhandler.cxx \
 	web/filehandler.cxx \
 	web/redirecthandler.cxx \
 	web/httpserver.cxx \
@@ -23,8 +28,7 @@ webradio_SOURCES = main.cxx \
 	dsp/dspblock.cxx \
 	dsp/lowpass.cxx \
 	dsp/downconverter.cxx \
-	dsp/receiver.cxx \
-	dsp/amdemod.cxx
+	dsp/demodulator.cxx
 
 webradio_LDADD = -lm -lmp3lame \
 	$(libjsoncpp_LIBS) \

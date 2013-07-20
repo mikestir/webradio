@@ -14,18 +14,17 @@
 
 #include "httpserver.h"
 #include "audiostream.h"
+#include "confighandler.h"
 #include "filehandler.h"
-#include "apihandler.h"
 #include "redirecthandler.h"
+#include "tunerhandler.h"
+#include "tunercontrolhandler.h"
+#include "receiverhandler.h"
+#include "waterfallhandler.h"
 
-#include "pulseaudio.h"
 #include "rtlsdrtuner.h"
 #include "spectrumsink.h"
-#include "lowpass.h"
-#include "randsource.h"
-#include "downconverter.h"
-#include "amdemod.h"
-
+#include "radio.h"
 
 static volatile bool quit = false;
 
@@ -34,128 +33,87 @@ static void sighandler(int signum)
 	quit = true;
 }
 
-SpectrumSink *spectrum;
-Tuner *tuner;
-DownConverter *dc1, *dc2;
-
 int main(int argc, char **argv)
 {
 	struct sigaction sa;
-	struct timeval now,last;
+	struct timeval last;
+	string tunerid = "00000001";
 	
 	sa.sa_handler = sighandler;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
 	sigaction(SIGINT, &sa, NULL);
-	
-	//SampleSource *src = new PulseAudioSource();
-	//src->setSampleRate(48000);
-	//src->setChannels(2);
-	//src->setBlockSize(32768);
 
-	tuner = new RtlSdrTuner();
-	tuner->setCentreFrequency(124000000);
-	tuner->setOffsetPPM(25);
-	tuner->setSampleRate(2400000);
-	tuner->setBlockSize(204800);
-	tuner->setAGC(true);
+	if (argc > 1) {
+		tunerid = string(argv[1]);
+	}
 
-	spectrum = new SpectrumSink();
-	tuner->connect(spectrum);
-
-
-	dc1 = new DownConverter();
-	dc1->setIF(325000);
-
-	LowPass *filt1 = new LowPass();
-	filt1->setPassband(80000);
-	filt1->setOutputSampleRate(240000);
-
-	AMDemod *demod = new AMDemod();
-
-	LowPass *filt2 = new LowPass();
-	filt2->setPassband(8000);
-	filt2->setOutputSampleRate(48000);
-
-	SampleSink *sink = new AudioStreamManager();
-	sink->setSubdevice("stream1");
-
-	tuner->connect(dc1);
-	dc1->connect(filt1);
-	filt1->connect(demod);
-	demod->connect(filt2);
-	filt2->connect(sink);
-
-#if 0
-	dc2 = new DownConverter();
-	dc2->setIF(1010000);
-
-	LowPass *filt3 = new LowPass();
-	filt3->setPassband(80000);
-	filt3->setOutputSampleRate(240000);
-
-	AMDemod *demod2 = new AMDemod();
-
-	LowPass *filt4 = new LowPass();
-	filt4->setPassband(8000);
-	filt4->setOutputSampleRate(248000);
-
-	SampleSink *sink2 = new AudioStreamManager();
-	sink2->setSubdevice("stream2");
-
-	tuner->connect(dc2);
-	dc2->connect(filt3);
-	filt3->connect(demod2);
-	demod2->connect(filt4);
-	filt4->connect(sink2);
-#endif
-
-
-	tuner->start();
+	/* FIXME: This just builds a simple single front-end, single
+	 * receiver stack.  We can handle way more than this!
+	 */
+	FrontEnd *fe = new FrontEnd(RtlSdrTuner::factory);
+	fe->tuner()->setSubdevice(tunerid);
+	Receiver *rx = new Receiver();
+	rx->setFrontEnd(fe);
+	fe->tuner()->setCentreFrequency(124325000);
+	fe->tuner()->setSampleRate(2400000);
+	fe->tuner()->setBlockSize(204800);
+	//fe->tuner()->setGainDB(50);
+	fe->tuner()->setAGC(true);
+	rx->downconverter()->setIF(0);
+	rx->demodulator()->setMode(Demodulator::AM);
 
 	HttpServer *h = new HttpServer(8080);
 	h->registerHandler("", RedirectHandler::factory, new string("/static/ui.html"));
-	h->registerHandler("tuners/*/receivers", RedirectHandler::factory, new string("/receivers?tuner_id=$1"));
-	h->registerHandler("receivers/*/audio.mp3", RedirectHandler::factory, new string("/audio/$1.mp3"));
-	h->registerHandler("receivers/*/audio.ogg", RedirectHandler::factory, new string("/audio/$1.ogg"));
 	h->registerHandler("static/**", FileHandler::factory);
 	h->registerHandler("audio/*", AudioStreamHandler::factory);
-#if 0
 	h->registerHandler("config", ConfigHandler::factory);
-	h->registerHandler("tuners/*", TunerListHandler::factory);
+	h->registerHandler("tuners", TunerHandler::factory);
+	h->registerHandler("tuners/*", TunerHandler::factory);
 	h->registerHandler("tuners/*/control", TunerControlHandler::factory);
-	h->registerHandler("tuners/*/peaks", PeaksHandler::factory);
+//	h->registerHandler("tuners/*/peaks", PeaksHandler::factory);
 	h->registerHandler("tuners/*/waterfall", WaterfallHandler::factory);
-#endif
-	h->registerHandler("api/**", ApiHandler::factory);
+	h->registerHandler("tuners/*/receivers", RedirectHandler::factory, new string("/receivers?tuner_id=$1"));
+	h->registerHandler("receivers", ReceiverHandler::factory);
+	h->registerHandler("receivers/*", ReceiverHandler::factory);
+	h->registerHandler("receivers/*/audio.mp3", RedirectHandler::factory, new string("/audio/$1.mp3"));
+	h->registerHandler("receivers/*/audio.ogg", RedirectHandler::factory, new string("/audio/$1.ogg"));
 	h->start();
 
+	if (!fe->tuner()->start()) { // FIXME: Maybe there should be shortcut in Radio to do this
+		LOG_ERROR("Pipeline failed to start\n");
+		goto exit;
+	}
 
 	gettimeofday(&last, NULL);
 	while (!quit) {
-		static unsigned int lastin = 0;
+		Radio::run();
+#if 0
+//		static unsigned int lastin = 0;
+		struct timeval now;
 		gettimeofday(&now, NULL);
-		tuner->run();
+
 		if (now.tv_sec >= last.tv_sec + 5) {
 			LOG_DEBUG("%u Hz\n", (tuner->totalOut() - lastin) / 5);
 			last = now;
 			lastin = tuner->totalOut();
 			LOG_DEBUG("capture %lu ns/frame\n", tuner->totalNanoseconds() / tuner->totalIn());
 			LOG_DEBUG("waterfall %lu ns/frame\n", spectrum->totalNanoseconds() / spectrum->totalIn());
-			LOG_DEBUG("downconverter %lu ns/frame\n", dc1->totalNanoseconds() / dc1->totalIn());
-			LOG_DEBUG("channel filter %lu ns/frame\n", filt1->totalNanoseconds() / filt1->totalIn());
-			LOG_DEBUG("demod %lu ns/frame\n", demod->totalNanoseconds() / demod->totalIn());
-			LOG_DEBUG("audio filter %lu ns/frame\n", filt2->totalNanoseconds() / filt2->totalIn());
+			LOG_DEBUG("downconverter %lu ns/frame\n", rx->downconverter()->totalNanoseconds() / rx->downconverter()->totalIn());
+			LOG_DEBUG("channel filter %lu ns/frame\n", rx->channelFilter()->totalNanoseconds() / rx->channelFilter()->totalIn());
+			LOG_DEBUG("demod %lu ns/frame\n", rx->demodulator()->totalNanoseconds() / rx->demodulator()->totalIn());
+			LOG_DEBUG("audio filter %lu ns/frame\n", rx->audioFilter()->totalNanoseconds() / rx->audioFilter()->totalIn());
 
 		}
+#endif
 	}
 
+exit:
 	delete h;
-	delete tuner;
-	//delete filt1;
-	delete filt2;
-	delete demod;
-	delete sink;
+	delete rx;
+	delete fe;
+
+	LOG_DEBUG("bye bye!\n");
 
 	return 0;
 }

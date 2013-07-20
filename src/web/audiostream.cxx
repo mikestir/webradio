@@ -104,8 +104,12 @@ AudioStreamHandler::AudioStreamHandler() : HttpRequestHandler()
 AudioStreamHandler::~AudioStreamHandler()
 {
 	/* De-register */
-	if (streams[mountpoint])
-		streams[mountpoint]->deregisterConsumer(this);
+	if (streams.count(mountpoint))
+		streams.at(mountpoint)->deregisterConsumer(this);
+
+	/* Close pipe */
+	close(pipefd[0]);
+	close(pipefd[1]);
 }
 
 void AudioStreamHandler::push(const vector<char> &data)
@@ -120,10 +124,24 @@ void AudioStreamHandler::push(const vector<char> &data)
 unsigned short AudioStreamHandler::doGet(const vector<string> &wildcards, const vector<char> &requestData)
 {
 	//AudioStreamManager::format format;
+	string fmt;
+
+	/* Split mountpoint and format (extension) */
+	size_t pos = wildcards[0].find_last_of('.');
+	if (pos == string::npos) {
+		LOG_ERROR("No file extension\n");
+		return MHD_HTTP_NOT_FOUND;
+	}
+	mountpoint = wildcards[0].substr(0, pos);
+	fmt = wildcards[0].substr(pos);
+	if (fmt != ".mp3") {
+		LOG_ERROR("Unsupported format %s\n", fmt.c_str());
+		return MHD_HTTP_NOT_FOUND;
+	}
+	LOG_DEBUG("mountpoint: %s, format: %s\n", mountpoint.c_str(), fmt.c_str());
 
 	/* Extract mountpoint from path */
-	mountpoint = wildcards[0];
-	if (streams[mountpoint] == NULL) {
+	if (streams.count(mountpoint) == 0) {
 		LOG_ERROR("Request for non-existent audio stream: %s\n", mountpoint.c_str());
 		return MHD_HTTP_NOT_FOUND;
 	}
@@ -134,7 +152,7 @@ unsigned short AudioStreamHandler::doGet(const vector<string> &wildcards, const 
 	/* Write end of the pipe must be non-blocking */
 	fcntl(pipefd[1], F_SETFL, O_NONBLOCK);
 
-	streams[mountpoint]->registerConsumer(this);
+	streams.at(mountpoint)->registerConsumer(this);
 	_contentType = "audio/mpeg";
 	_isPersistent = true;
 	return MHD_HTTP_OK;
@@ -142,6 +160,7 @@ unsigned short AudioStreamHandler::doGet(const vector<string> &wildcards, const 
 
 ssize_t AudioStreamHandler::contentReader(uint64_t pos, char *buf, size_t max)
 {
+	/* FIXME: This can hang on shutdown - need to trace cause of deadlock */
 	/* Blocks until data available, as required by the HTTPD library */
 	return read(pipefd[0], buf, max);
 }

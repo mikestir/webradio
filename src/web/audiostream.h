@@ -25,7 +25,7 @@ public:
 		return new AudioStreamHandler();
 	}
 
-	const string allows() { return "GET"; }
+	const string allows(const vector<string> &wildcards) { return "GET"; }
 
 	void push(const vector<char> &data);
 	unsigned short doGet(const vector<string> &wildcards, const vector<char> &requestData);

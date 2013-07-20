@@ -30,8 +30,11 @@ RtlSdrTuner::RtlSdrTuner(const string &name) :
 
 	LOG_DEBUG("Found %d devices\n", deviceCount);
 	for (unsigned int n = 0; n < deviceCount; n++) {
-		/* FIXME: Incorporate this into the _subdevices vector in some way */
-		_subdevices.push_back(rtlsdr_get_device_name(n));
+		char mfg[256];
+		char product[256];
+		char serial[256];
+		rtlsdr_get_device_usb_strings(n, mfg, product, serial);
+		_subdevices.push_back(string(serial));
 		LOG_DEBUG("Device %d: %s\n", n, _subdevices[n].c_str());
 	}
 
@@ -165,17 +168,24 @@ void RtlSdrTuner::setGainDB(float gain)
 
 bool RtlSdrTuner::init()
 {
-	/* FIXME: We don't currently support subdevices, just open the first one */
 	if (_subdevices.size() < 1) {
 		LOG_ERROR("No RTL-SDR devices found\n");
 		return false;
 	}
 
-	if (rtlsdr_open(&dev, 0) < 0) {
-		LOG_ERROR("Error opening device 0\n");
+	/* Subdevice refers to device serial number */
+	int index = rtlsdr_get_index_by_serial(subdevice().c_str());
+	if (index < 0) {
+		LOG_ERROR("Subdevice %s not found\n", subdevice().c_str());
+		return false;
+	}
+
+	if (rtlsdr_open(&dev, index) < 0) {
+		LOG_ERROR("Error opening device %d\n", index);
 		dev = NULL;
 		return false;
 	}
+	_name = rtlsdr_get_device_name(index);
 
 	/* Read back some info - might use this in the future */
 	unsigned int rtl_freq, tuner_freq;
@@ -191,6 +201,9 @@ bool RtlSdrTuner::init()
 	LOG_DEBUG("Manufacturer: %s\n", mfg);
 	LOG_DEBUG("Product: %s\n", product);
 	LOG_DEBUG("Serial: %s\n", serial);
+	_manufacturer = mfg;
+	_product = product;
+	_serial = serial;
 
 	/* We adjust actual device sample rate here.  No support for
 	 * changing while device is running */

@@ -41,13 +41,25 @@ int HttpRequestHandler::populate_args(void *self, enum MHD_ValueKind kind,
 void HttpRequestHandler::doError(unsigned short status)
 {
 	stringstream ss;
+	string errorstr;
+
+	switch (status) {
+	case 400: errorstr = "Bad request"; break;
+	case 401: errorstr = "Unauthorized"; break;
+	case 403: errorstr = "Forbidden"; break;
+	case 404: errorstr = "Not found"; break;
+	case 405: errorstr = "Method not allowed"; break;
+	case 406: errorstr = "Not acceptable"; break;
+	default:
+		errorstr = "An error occurred";
+	}
 
 	ss << "<!DOCTYPE html>\n" <<
 		"<html>\n" <<
 		"<head><title>Error " << status << "</title></head>\n" <<
 		"<body>\n" <<
 		"<h1>Error " << status << "</h1>\n" <<
-		"<p>An error occurred.</p>\n" <<
+		"<p>" << errorstr << "</p>\n" <<
 		"</body>\n" <<
 		"</html>\n";
 

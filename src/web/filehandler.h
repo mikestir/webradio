@@ -23,7 +23,7 @@ public:
 		return new FileHandler();
 	}
 
-	const string allows() { return "GET"; }
+	const string allows(const vector<string> &wildcards) { return "GET"; }
 
 	unsigned short doGet(const vector<string> &wildcards, const vector<char> &requestData);
 private:

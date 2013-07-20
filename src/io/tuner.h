@@ -30,6 +30,11 @@ public:
 			_gainDB(0) {}
 	virtual ~Tuner() {}
 
+	const string& name() const { return _name; }
+	const string& manufacturer() const { return _manufacturer; }
+	const string& product() const { return _product; }
+	const string& serial() const { return _serial; }
+
 	unsigned int centreFrequency() const { return _centreFrequency; }
 	int offsetPPM() const { return _offsetPPM; }
 	bool AGC() const { return _AGC; }
@@ -42,10 +47,17 @@ public:
 	virtual void setGainDB(float gain) {}
 
 protected:
+	string			_name;
+	string			_manufacturer;
+	string			_product;
+	string			_serial;
+
 	unsigned int	_centreFrequency;
 	int				_offsetPPM;
 	bool			_AGC;
 	float			_gainDB;
 };
+
+typedef Tuner* (*TunerFactory)(const string&);
 
 #endif /* TUNER_H_ */

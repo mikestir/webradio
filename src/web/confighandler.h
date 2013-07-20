@@ -1,26 +1,25 @@
 /*
- * redirecthandler.h
+ * confighandler.h
  *
- *  Created on: 15 Jul 2013
+ *  Created on: 16 Jul 2013
  *      Author: mike
  */
 
-#ifndef REDIRECTHANDLER_H_
-#define REDIRECTHANDLER_H_
+#ifndef CONFIGHANDLER_H_
+#define CONFIGHANDLER_H_
 
-#include <string>
 #include <vector>
-#include <map>
+#include <string>
 
 #include "httpserver.h"
 
-class RedirectHandler : public HttpRequestHandler
+class ConfigHandler : public HttpRequestHandler
 {
 public:
-	RedirectHandler();
-	~RedirectHandler();
+	ConfigHandler();
+	~ConfigHandler();
 	static HttpRequestHandler *factory() {
-		return new RedirectHandler();
+		return new ConfigHandler();
 	}
 
 	const string allows(const vector<string> &wildcards) { return "GET"; }
@@ -28,4 +27,4 @@ public:
 	unsigned short doGet(const vector<string> &wildcards, const vector<char> &requestData);
 };
 
-#endif /* REDIRECTHANDLER_H_ */
+#endif /* CONFIGHANDLER_H_ */
