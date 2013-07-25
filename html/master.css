@@ -1,0 +1,128 @@
+/* Hide selection */
+*::selection {
+	background: transparent;
+}
+
+*::-moz-selection {
+	background: transparent;
+}
+
+*::-webkit-selection {
+	background: transparent;
+}
+
+body {
+	font-family: Helvetica, Arial, sans-serif;
+	background-color: #ffffff;
+}
+
+/* Page header */
+
+#header {
+	color: #090909;
+}
+
+#header h1 {
+	font-size: 2em;
+}
+
+/* General layout classes */
+
+.sectionheader {
+	padding: 4px;
+	margin-top: 0;
+}
+
+.control {
+	margin: 5px;
+}
+
+/* Tuner
+ * FIXME: we may support multiple tuners so this should probably
+ * be class rather than ID based */
+
+#tuner {
+	height: 272px;
+	padding: 5px;
+}
+
+.lcd {
+ 	font-style: italic;
+	font-weight: bold;
+}
+
+#tunerlcd {
+	width: 550px;
+	height: 136px;
+	position: relative;
+}
+
+div.waterfall {
+	width: 512px;
+	height: 128px;
+	position: relative;
+	background-color: #090909;
+	padding: 4px 19px;
+}
+
+canvas.waterfall {
+	position: absolute;
+	left: 19px;
+	top: 4px;
+}
+
+#waterfall-canvas {
+	z-index: 0;
+}
+
+#waterfall-scale-canvas {
+	z-index: 1;
+}
+
+#tunercontrols {
+	width: 200px;
+	float: left;
+}
+
+#tunerinfo {
+	padding-left: 205px;
+	padding-right: 555px;
+}
+
+#tunerdisplays {
+	width: 550px;
+	float: right;
+}
+
+/* Receivers */
+
+#rxtabs {
+	padding: 5px;
+}
+
+.receiver {
+
+}
+
+.rxdisplays {
+	width: 350px;
+	float: right;
+}
+
+.rxlcd {
+	width: 350px;
+	height: 112px;
+	position: relative;
+}
+
+.rxcontrols {
+	padding-right: 360px;
+}
+
+/* Page footer */
+
+#footer {
+	font-size: 0.6em;
+	margin-top: 10px;
+	text-align: center;
+}

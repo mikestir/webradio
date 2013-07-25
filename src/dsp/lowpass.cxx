@@ -172,7 +172,10 @@ void LowPass::recalculate()
 		coeff[n] = impulse[bin][0] * window[n];
 	}
 
+#if 0
 	/* Dump impulse response */
 	for (vector<float>::iterator it = coeff.begin(); it != coeff.end(); ++it)
 		LOG_DEBUG("%f\n", *it);
+
+#endif
 }

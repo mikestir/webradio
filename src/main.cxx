@@ -53,15 +53,24 @@ int main(int argc, char **argv)
 	 */
 	FrontEnd *fe = new FrontEnd(RtlSdrTuner::factory);
 	fe->tuner()->setSubdevice(tunerid);
-	Receiver *rx = new Receiver();
-	rx->setFrontEnd(fe);
 	fe->tuner()->setCentreFrequency(124325000);
 	fe->tuner()->setSampleRate(2400000);
 	fe->tuner()->setBlockSize(204800);
 	//fe->tuner()->setGainDB(50);
 	fe->tuner()->setAGC(true);
+	fe->tuner()->setOffsetPPM(25);
+
+	Receiver *rx = new Receiver();
+	rx->setFrontEnd(fe);
 	rx->downconverter()->setIF(0);
 	rx->demodulator()->setMode(Demodulator::AM);
+
+#if 0
+	rx = new Receiver();
+	rx->setFrontEnd(fe);
+	rx->downconverter()->setIF(100000);
+	rx->demodulator()->setMode(Demodulator::FM);
+#endif
 
 	HttpServer *h = new HttpServer(8080);
 	h->registerHandler("", RedirectHandler::factory, new string("/static/ui.html"));

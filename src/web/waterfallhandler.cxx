@@ -10,7 +10,7 @@
 #include <sstream>
 #include <cmath>
 
-//#include <json/json.h>
+#include <json/json.h>
 
 #include "waterfallhandler.h"
 #include "debug.h"
@@ -40,24 +40,22 @@ unsigned short WaterfallHandler::doGet(const vector<string> &wildcards, const ve
 	magn.resize(fe->spectrum()->fftSize());
 	fe->spectrum()->getSpectrum(magn.data());
 
-	// FIXME: Do this with jsoncpp?
-	stringstream s;
-	vector<float>::iterator it;
-	s << "[";
-	for (it = magn.begin(); it != magn.end(); it++) {
-		// inf and nan are not allowed in JSON so serialise as a big negative number
-		if (isfinite(*it))
-			s << *it;
-		else
-			s << "-999.9";
-		if (it+1 != magn.end())
-			s << ", ";
-	}
-	s << "]";
-	string out = s.str();
+	Json::Value root;
+	root["centre_frequency"] = fe->tuner()->centreFrequency();
+	root["sample_rate"] = fe->spectrum()->inputSampleRate();
 
+	for (vector<float>::iterator it = magn.begin(); it != magn.end(); it++) {
+		// JSON can't represent inf or nan so convert to a large -ve number
+		if (isfinite(*it))
+			root["data"].append(*it);
+		else
+			root["data"].append(-10000.0);
+	}
+
+	Json::StyledWriter writer;
+	string output = writer.write(root);
 	_contentType = "application/json";
-	_data.insert(_data.end(), out.begin(), out.end());
+	_data.insert(_data.end(), output.begin(), output.end());
 	return MHD_HTTP_OK;
 }
 

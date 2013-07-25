@@ -55,7 +55,7 @@ Receiver::Receiver()
 	_audioFilter->connect(_stream);
 
 	_channelFilter->setPassband(80000);
-	_channelFilter->setOutputSampleRate(480000);
+	_channelFilter->setOutputSampleRate(240000);
 	_audioFilter->setPassband(8000);
 	_audioFilter->setOutputSampleRate(48000);
 	_demodulator->setMode(Demodulator::AM);
