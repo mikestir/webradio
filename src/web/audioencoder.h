@@ -10,8 +10,12 @@
 
 #include <vector>
 
+// FIXME: Use config.h for feature selection
+
 #include <lame/lame.h>
+#ifdef WITH_VORBIS
 #include <vorbis/vorbisenc.h>
+#endif
 
 using namespace std;
 
@@ -47,6 +51,7 @@ private:
 	lame_t			state;
 };
 
+#ifdef WITH_VORBIS
 class VorbisEncoder : public AudioEncoder
 {
 public:
@@ -66,5 +71,6 @@ private:
 	ogg_page			og;
 
 };
+#endif
 
 #endif /* AUDIOENCODER_H_ */

@@ -6,7 +6,8 @@ AM_CXXFLAGS = -Wall -Werror \
 	$(libmicrohttpd_CFLAGS) \
 	$(libfftw3_CFLAGS) \
 	$(librtlsdr_CFLAGS) \
-	$(libpulsesimple_CFLAGS)
+	$(libpulsesimple_CFLAGS) \
+	$(libjsoncpp_CFLAGS)
 
 bin_PROGRAMS = webradio
 webradio_SOURCES = main.cxx \
@@ -31,10 +32,9 @@ webradio_SOURCES = main.cxx \
 	dsp/demodulator.cxx
 
 webradio_LDADD = -lm -lmp3lame \
-	$(libjsoncpp_LIBS) \
 	$(libmicrohttpd_LIBS) \
 	$(libfftw3_LIBS) \
 	$(librtlsdr_LIBS) \
-	$(libpulsesimple_LIBS)
+	$(libpulsesimple_LIBS) \
+	$(libjsoncpp_LIBS)
 
-	

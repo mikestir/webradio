@@ -1,0 +1,13 @@
+The UI requires JQuery and JQuery UI, which are not bundled.
+
+To install in this directory:
+
+# wget http://code.jquery.com/jquery-1.10.1.min.js
+# wget http://jqueryui.com/resources/download/jquery-ui-1.10.3.zip
+# unzip jquery-ui-1.10.3.zip
+
+Create symlinks for themes and ui scripts:
+
+# ln -s jquery-ui-1.10.3/themes
+# ln -s jquery-ui-1.10.3/ui/minified ui
+
