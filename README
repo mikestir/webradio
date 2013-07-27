@@ -1,0 +1,25 @@
+WebRadio
+
+WebRadio is an open-source Software Defined Radio (SDR) platform designed from
+scratch to be remotely controlled from a browser. The front-end is written
+in HTML5 and Javascript, and can be accessed from any modern browser, 
+including from smartphones.
+
+Internally the server is highly modular, with support for multiple tuners and
+multiple demodulators per-tuner. As well as providing streaming audio to
+clients, each receiver can be configured with additional sinks such as
+server-side recording and data decoding.
+
+Currently supported tuner hardware:
+
+RTL2832U-based USB sticks
+
+Support is planned for the following:
+
+Ettus Research USRP
+Fun Cube Dongle
+External receivers with computer control support via Hamlib
+
+WebRadio is (C) 2013 Mike Stirling. It is licensed under the GNU Affero GPLv3.
+For license details see LICENSE in this directory.
+
