@@ -113,7 +113,7 @@ int HttpServer::handlerCallback(void *arg,
 
 	/* Get POST data if present */
 	if (*upload_data_size > 0) {
-		LOG_DEBUG("adding %lu bytes\n", *upload_data_size);
+		LOG_DEBUG("adding %u bytes\n", (unsigned int)*upload_data_size);
 		/* Append to upload_buffer */
 		upload_buffer->insert(upload_buffer->end(),
 			upload_data, upload_data + *upload_data_size);
