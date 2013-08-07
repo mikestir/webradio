@@ -67,6 +67,8 @@ public:
 	unsigned int decimation() const { return _decimation; }
 	unsigned int interpolation() const { return _interpolation; }
 #ifdef DSPBLOCK_PROFILE
+	uint64_t nsPerFrameAll() const;
+	uint64_t nsPerFrameOne() const { return _totalNanoseconds / _totalIn; }
 	uint64_t totalNanoseconds() const { return _totalNanoseconds; }
 	unsigned int totalIn() const { return _totalIn; }
 	unsigned int totalOut() const { return _totalOut; }
@@ -79,7 +81,7 @@ protected:
 	/* Subclasses must implement these to do the actual work */
 	virtual bool init() { return false; } /*=0; FIXME: gets called under some circumstances! */
 	virtual void deinit() {} /*=0; FIXME: gets called under some circumstances! */
-	virtual bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer) { return false; } /*=0; FIXME: gets called under some circumstances! */
+	virtual bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
 
 	/* Blocks may adjust output sample rate and channel count during
 	 * startup */

@@ -96,11 +96,22 @@
 //		$("#rxtabs").tabs();
 
 		$("#rx0ifbandwidth").slider({
-			min: 5000,
-			max: 300000,
-			step: 5000,
+			min: 200,
+			max: 200000,
+			step: 200,
 			animate: true,
 			orientation: "horizontal",
+			slide: function() {
+				var bandwidth = $("#rx0ifbandwidth").slider("value");
+				console.debug("new bandwidth" + bandwidth + " Hz");
+				
+				$.ajax({
+					url: '../receivers/0000',
+					type: 'PUT',
+					contentType: 'application/json',
+					data: ' { "if_bandwidth": ' + bandwidth + ' }'		
+				});
+			}
 			});
 		$("#rx0afbandwidth").slider({
 			min: 1000,

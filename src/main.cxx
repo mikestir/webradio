@@ -53,7 +53,7 @@ static void sighandler(int signum)
 int main(int argc, char **argv)
 {
 	struct sigaction sa;
-	struct timeval last;
+	time_t t = 0, tn = 0;
 	string tunerid = "00000001";
 	
 	sa.sa_handler = sighandler;
@@ -111,27 +111,14 @@ int main(int argc, char **argv)
 		goto exit;
 	}
 
-	gettimeofday(&last, NULL);
 	while (!quit) {
 		Radio::run();
-#if 0
-//		static unsigned int lastin = 0;
-		struct timeval now;
-		gettimeofday(&now, NULL);
 
-		if (now.tv_sec >= last.tv_sec + 5) {
-			LOG_DEBUG("%u Hz\n", (tuner->totalOut() - lastin) / 5);
-			last = now;
-			lastin = tuner->totalOut();
-			LOG_DEBUG("capture %lu ns/frame\n", tuner->totalNanoseconds() / tuner->totalIn());
-			LOG_DEBUG("waterfall %lu ns/frame\n", spectrum->totalNanoseconds() / spectrum->totalIn());
-			LOG_DEBUG("downconverter %lu ns/frame\n", rx->downconverter()->totalNanoseconds() / rx->downconverter()->totalIn());
-			LOG_DEBUG("channel filter %lu ns/frame\n", rx->channelFilter()->totalNanoseconds() / rx->channelFilter()->totalIn());
-			LOG_DEBUG("demod %lu ns/frame\n", rx->demodulator()->totalNanoseconds() / rx->demodulator()->totalIn());
-			LOG_DEBUG("audio filter %lu ns/frame\n", rx->audioFilter()->totalNanoseconds() / rx->audioFilter()->totalIn());
-
+		t = time(NULL);
+		if (t >= tn) {
+			Radio::profile();
+			tn = t + 5;
 		}
-#endif
 	}
 
 exit:

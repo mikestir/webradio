@@ -87,6 +87,19 @@ void DspBlock::disconnect(DspBlock *block)
 			this->type().c_str(), this->name().c_str());
 }
 
+#ifdef DSPBLOCK_PROFILE
+uint64_t DspBlock::nsPerFrameAll() const
+{
+	uint64_t total;
+
+	total = nsPerFrameOne();
+	LOG_DEBUG("%s:%s %lu ns/frame\n", type().c_str(), name().c_str(), total);
+	for (vector<DspBlock*>::const_iterator it = consumers.begin(); it != consumers.end(); ++it)
+		total += (*it)->nsPerFrameAll();
+	return total;
+}
+#endif
+
 bool DspBlock::start()
 {
 	/* Defaults, primarily for sinks to avoid breaking buffer calcs */

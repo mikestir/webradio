@@ -27,6 +27,8 @@
 #include <map>
 #include <string>
 
+#include <stdint.h>
+
 #include "tuner.h"
 #include "spectrumsink.h"
 #include "lowpass.h"
@@ -95,6 +97,7 @@ namespace Radio {
 	const map<string, FrontEnd*>& frontEnds();
 	const map<string, Receiver*>& receivers();
 
+	void profile();
 	void run();
 }
 

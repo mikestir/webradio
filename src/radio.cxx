@@ -48,6 +48,11 @@ namespace Radio {
 		return g_receivers;
 	}
 
+	void profile() {
+		for (map<string, FrontEnd*>::iterator it = g_frontEnds.begin(); it != g_frontEnds.end(); ++it)
+			it->second->tuner()->nsPerFrameAll();
+	}
+
 	void run() {
 		for (map<string, FrontEnd*>::iterator it = g_frontEnds.begin(); it != g_frontEnds.end(); ++it)
 			it->second->tuner()->run();
