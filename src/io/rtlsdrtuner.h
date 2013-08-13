@@ -51,9 +51,10 @@ public:
 	void setGainDB(float gain);
 
 private:
+	Type outputType() { return DspBlock::Float; }
 	bool init();
 	void deinit();
-	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
 
 	void dataReady(unsigned char *buf, unsigned int len);
 
@@ -62,7 +63,7 @@ private:
 
 	rtlsdr_dev_t*	dev;
 
-	vector<vector<sample_t> >	ringBuffer;
+	vector<vector<float> >	ringBuffer;
 	unsigned int	head;
 	unsigned int	tail;
 	pthread_t		thread;

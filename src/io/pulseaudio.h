@@ -30,36 +30,40 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 
-#include "samplesource.h"
-#include "samplesink.h"
+#include "ioblock.h"
 
 using namespace std;
 
-class PulseAudioSource : public SampleSource
+class PulseAudioSource : public SourceBlock
 {
 public:
 	PulseAudioSource(const string &name = "<undefined>");
 	~PulseAudioSource();
 
 private:
+	Type outputType() { return DspBlock::Float; }
+
 	bool init();
 	void deinit();
-	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
 
 	pa_sample_spec ss;
 	pa_simple *pa;
 };
 
-class PulseAudioSink : public SampleSink
+class PulseAudioSink : public IOBlock
 {
 public:
 	PulseAudioSink(const string &name = "<undefined>");
 	~PulseAudioSink();
 
 private:
+	Type inputType() { return DspBlock::Float; }
+	Type outputType() { return DspBlock::None; }
+
 	bool init();
 	void deinit();
-	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
 
 	pa_sample_spec ss;
 	pa_simple *pa;

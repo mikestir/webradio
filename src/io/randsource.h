@@ -27,18 +27,20 @@
 #include <vector>
 #include <string>
 
-#include "samplesource.h"
+#include "ioblock.h"
 
-class RandSource : public SampleSource
+class RandSource : public SourceBlock
 {
 public:
 	RandSource(const string &name = "<undefined>");
 	~RandSource();
 
 protected:
+	Type outputType() { return DspBlock::Float; }
+
 	bool init();
 	void deinit();
-	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
 };
 
 #endif /* RANDSOURCE_H_ */

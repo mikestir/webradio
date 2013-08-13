@@ -30,7 +30,7 @@
 
 #include "httpserver.h"
 #include "audioencoder.h"
-#include "samplesink.h"
+#include "ioblock.h"
 
 class AudioStreamHandler : public HttpRequestHandler
 {
@@ -53,7 +53,7 @@ protected:
 };
 
 class AudioStreamManager;
-class AudioStreamManager : public SampleSink
+class AudioStreamManager : public IOBlock
 {
 public:
 	AudioStreamManager(const string &name = "<undefined>");
@@ -62,9 +62,12 @@ public:
 	void registerConsumer(AudioStreamHandler *consumer);
 	void deregisterConsumer(AudioStreamHandler *consumer);
 private:
+	Type inputType() { return DspBlock::Float; }
+	Type outputType() { return DspBlock::None; }
+
 	bool init();
 	void deinit();
-	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
 
 	void produce(const vector<char> &stream);
 	vector<AudioStreamHandler*> _consumers;

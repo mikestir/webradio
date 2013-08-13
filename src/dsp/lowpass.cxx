@@ -37,9 +37,10 @@
 
 /* FIXME: Make runtime variable */
 #define FIR_LENGTH 	64
+#define DEFAULT_SAMPLE_RATE		48000
 
 LowPass::LowPass(const string &name) : DspBlock(name, "LowPass"),
-	_firLength(FIR_LENGTH), spec(NULL), impulse(NULL),
+	_firLength(FIR_LENGTH), spec(NULL), impulse(NULL), p(NULL),
 	_passband(0),
 	_reqDecimation(0),
 	_reqOutputRate(DEFAULT_SAMPLE_RATE)
@@ -127,38 +128,37 @@ void LowPass::deinit()
 	vector<float>().swap(coeff);
 	vector<float>().swap(block);
 }
-
-bool LowPass::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
+int LowPass::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
 {
+	const float *in = (const float*)inbuffer;
+	float *out = (float*)outbuffer;
 	unsigned int historySize = inputChannels() * (_firLength - 1);
 
 	/* Push new block into processing buffer, retaining _firLength - 1 frames
 	 * from the previous block.  This copy step simplifies the inner loop by
 	 * ensuring current and previous input samples are contiguous. */
-	if (block.size() != inBuffer.size() + historySize)
-		block.resize(inBuffer.size() + historySize);
-	vector<sample_t>::iterator it = block.begin();
+	if (block.size() != inframes * inputChannels() + historySize)
+		block.resize(inframes * inputChannels() + historySize);
+	vector<float>::iterator it = block.begin();
 	it = copy(block.end() - historySize, block.end(), it);
-	copy(inBuffer.begin(), inBuffer.end(), it);
+	copy(in, in + inframes * inputChannels(), it);
 
 	/* Clear output buffer */
-	fill(outBuffer.begin(), outBuffer.end(), 0.0);
+	fill(out, out + outframes * outputChannels(), 0.0);
 
-	float *in = (float*)block.data();
-	float *out = (float*)outBuffer.data();
-	unsigned int nframes = outBuffer.size() / outputChannels();
+	float *firin = (float*)block.data();
 	unsigned int instep = inputChannels() * decimation();
-	while (nframes--) {
-		float *inptr = in;
+	for (unsigned int n = 0; n < outframes; n++) {
+		float *inptr = firin;
 		for (vector<float>::reverse_iterator it = coeff.rbegin();
 				it != coeff.rend(); ++it)
 			for (unsigned int c = 0; c < inputChannels(); ++c)
 				out[c] += (*it) * (*inptr++);
 		out += outputChannels();
-		in += instep;
+		firin += instep;
 	}
 
-	return true;
+	return (int)outframes;
 }
 
 void LowPass::recalculate()

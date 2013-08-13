@@ -46,9 +46,12 @@ public:
 	void setIF(int hz);
 
 private:
+	Type inputType() { return DspBlock::Float; }
+	Type outputType() { return DspBlock::Float; }
+
 	bool init();
 	void deinit();
-	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
 
 	LowPass*	filter;
 	int			_if;

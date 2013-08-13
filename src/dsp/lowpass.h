@@ -44,9 +44,12 @@ public:
 	void setOutputSampleRate(unsigned int hz);
 
 private:
+	Type inputType() { return DspBlock::Float; }
+	Type outputType() { return DspBlock::Float; }
+
 	bool init();
 	void deinit();
-	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
 
 	void recalculate();
 
@@ -61,7 +64,7 @@ private:
 	unsigned int	_passband;
 
 	/* Filter operation */
-	vector<sample_t>	block;
+	vector<float>	block;
 	unsigned int	_reqDecimation;
 	unsigned int	_reqOutputRate;
 };

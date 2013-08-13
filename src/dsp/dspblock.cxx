@@ -24,23 +24,28 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <cstdlib>
+
+#include <stdint.h>
 
 #include "debug.h"
 #include "dspblock.h"
 
 DspBlock::DspBlock(const string &name, const string &type) :
-			_outputSampleRate(DEFAULT_SAMPLE_RATE),
-			_outputChannels(DEFAULT_CHANNELS),
+			_outputSampleRate(0),
+			_outputChannels(0),
 			_name(name),
-			_type(type),
-			_inputSampleRate(DEFAULT_SAMPLE_RATE),
-			_inputChannels(DEFAULT_CHANNELS),
+			_blockType(type),
+			_inputSampleRate(0),
+			_inputChannels(0),
 			_decimation(1), _interpolation(1),
 #ifdef DSPBLOCK_PROFILE
 			_totalNanoseconds(0),
 			_totalIn(0), _totalOut(0),
 #endif
-			_isRunning(false)
+			_isRunning(false),
+			outbuffer(NULL),
+			nelements(0)
 {
 
 }
@@ -61,15 +66,15 @@ void DspBlock::connect(DspBlock *block)
 	/* Hook up */
 	if (find(consumers.begin(), consumers.end(), block) != consumers.end()) {
 		LOG_ERROR("Block %s:%s already connected to %s:%s\n",
-				block->type().c_str(), block->name().c_str(),
-				this->type().c_str(), this->name().c_str());
+				block->blockType().c_str(), block->name().c_str(),
+				this->blockType().c_str(), this->name().c_str());
 		return;
 	}
 
 	consumers.push_back(block);
 	LOG_DEBUG("Added block %s:%s as consumer of %s:%s\n",
-			block->type().c_str(), block->name().c_str(),
-			this->type().c_str(), this->name().c_str());
+			block->blockType().c_str(), block->name().c_str(),
+			this->blockType().c_str(), this->name().c_str());
 }
 
 void DspBlock::disconnect(DspBlock *block)
@@ -83,8 +88,8 @@ void DspBlock::disconnect(DspBlock *block)
 	consumers.erase(remove(consumers.begin(), consumers.end(), block),
 			consumers.end());
 	LOG_DEBUG("Removed block %s:%s as consumer of %s:%s\n",
-			block->type().c_str(), block->name().c_str(),
-			this->type().c_str(), this->name().c_str());
+			block->blockType().c_str(), block->name().c_str(),
+			this->blockType().c_str(), this->name().c_str());
 }
 
 #ifdef DSPBLOCK_PROFILE
@@ -93,7 +98,7 @@ uint64_t DspBlock::nsPerFrameAll() const
 	uint64_t total;
 
 	total = nsPerFrameOne();
-	LOG_DEBUG("%s:%s %lu ns/frame\n", type().c_str(), name().c_str(), total);
+	LOG_DEBUG("%s:%s %lu ns/frame\n", blockType().c_str(), name().c_str(), total);
 	for (vector<DspBlock*>::const_iterator it = consumers.begin(); it != consumers.end(); ++it)
 		total += (*it)->nsPerFrameAll();
 	return total;
@@ -102,18 +107,14 @@ uint64_t DspBlock::nsPerFrameAll() const
 
 bool DspBlock::start()
 {
-	/* Defaults, primarily for sinks to avoid breaking buffer calcs */
-	_outputSampleRate = _inputSampleRate;
-	_outputChannels = _inputChannels;
-
 	/* Start this block - may update its output sample rate */
-	LOG_DEBUG("Starting block %s:%s\n", this->type().c_str(), this->name().c_str());
+	LOG_DEBUG("Starting block %s:%s\n", blockType().c_str(), name().c_str());
 	if (!init()) {
-		LOG_ERROR("Block %s:%s failed to initialise\n", this->type().c_str(), this->name().c_str());
+		LOG_ERROR("Block %s:%s failed to initialise\n", blockType().c_str(), name().c_str());
 		return false;
 	}
 	/* Validate new sample rate and calculate decimation/interpolation rate */
-	if (_inputSampleRate >= _outputSampleRate) {
+	if (_outputSampleRate && _inputSampleRate >= _outputSampleRate) {
 		_decimation = _inputSampleRate / _outputSampleRate;
 		_interpolation = 1;
 	} else {
@@ -154,16 +155,20 @@ void DspBlock::stop()
 		(*it)->stop();
 
 	if (_isRunning) {
-		LOG_DEBUG("Stopping block %s:%s\n", this->type().c_str(), this->name().c_str());
+		LOG_DEBUG("Stopping block %s:%s\n", blockType().c_str(), name().c_str());
 		_isRunning = false;
 		deinit();
 	}
 
 	/* Release output buffer */
-	vector<sample_t>().swap(buffer);
+	if (nelements) {
+		free(outbuffer);
+		outbuffer = NULL;
+		nelements = 0;
+	}
 }
 
-bool DspBlock::run(const vector<sample_t> &inBuffer)
+bool DspBlock::run(const void *inbuffer, unsigned int inframes)
 {
 	if (!_isRunning) {
 		LOG_ERROR("Pipeline not started\n");
@@ -171,13 +176,31 @@ bool DspBlock::run(const vector<sample_t> &inBuffer)
 	}
 
 	/* Resize output buffer */
-	unsigned int inframes = inBuffer.size() / _inputChannels;
 	unsigned int outframes = inframes * _interpolation / _decimation;
-	if (buffer.size() != outframes * _outputChannels) {
+	if (nelements != outframes * _outputChannels) {
 		LOG_DEBUG("Resizing %s:%s buffer to %u frames (%u channels)\n",
-				this->type().c_str(), this->name().c_str(),
+				blockType().c_str(), name().c_str(),
 				outframes, _outputChannels);
-		buffer.resize(outframes * _outputChannels);
+		nelements = outframes * _outputChannels;
+		switch (outputType()) {
+		case Float:
+			outbuffer = realloc(outbuffer, nelements * sizeof(float));
+			break;
+		case Int8:
+			outbuffer = realloc(outbuffer, nelements * sizeof(int8_t));
+			break;
+		case Int16:
+			outbuffer = realloc(outbuffer, nelements * sizeof(int16_t));
+			break;
+		case Int32:
+			outbuffer = realloc(outbuffer, nelements * sizeof(int32_t));
+			break;
+		default:
+			LOG_ERROR("Unsupported output type\n");
+			nelements = 0;
+			outbuffer = NULL;
+			return false;
+		}
 	}
 
 #ifdef DSPBLOCK_PROFILE
@@ -186,8 +209,9 @@ bool DspBlock::run(const vector<sample_t> &inBuffer)
 #endif
 
 	/* Process */
-	if (!process(inBuffer, buffer)) {
-		LOG_ERROR("Pipeline failed at block %s:%s\n", this->type().c_str(), this->name().c_str());
+	// FIXME: Check actual generated frames
+	if (process(inbuffer, inframes, outbuffer, outframes) < 0) {
+		LOG_ERROR("Pipeline failed at block %s:%s\n", blockType().c_str(), name().c_str());
 		return false;
 	}
 
@@ -202,7 +226,7 @@ bool DspBlock::run(const vector<sample_t> &inBuffer)
 
 	/* Propagate result to all registered consumers */
 	for (vector<DspBlock*>::iterator it = consumers.begin(); it != consumers.end(); ++it)
-		if (!(*it)->run(buffer))
+		if (!(*it)->run(outbuffer, outframes))
 			return false;
 
 	return true;
@@ -213,7 +237,7 @@ void DspBlock::setSampleRate(unsigned int rate)
 	if (_isRunning)
 		return;
 
-	LOG_DEBUG("Setting %s:%s input sample rate to %u\n", this->type().c_str(), this->name().c_str(), rate);
+	LOG_DEBUG("Setting %s:%s input sample rate to %u\n", blockType().c_str(), name().c_str(), rate);
 	_inputSampleRate = rate;
 }
 
@@ -222,25 +246,6 @@ void DspBlock::setChannels(unsigned int channels)
 	if (_isRunning)
 		return;
 
-	LOG_DEBUG("Setting %s:%s input channel count to %u\n", this->type().c_str(), this->name().c_str(), channels);
+	LOG_DEBUG("Setting %s:%s input channel count to %u\n", blockType().c_str(), name().c_str(), channels);
 	_inputChannels = channels;
-}
-
-DspSource::DspSource(const string &name, const string &type) : DspBlock(name, type), _blockSize(DEFAULT_BLOCK_SIZE)
-{
-
-}
-
-DspSource::~DspSource()
-{
-
-}
-
-void DspSource::setBlockSize(unsigned int size)
-{
-	if (_isRunning)
-		return;
-
-	LOG_DEBUG("Setting %s:%s source block size to %u\n", this->type().c_str(), this->name().c_str(), size);
-	_blockSize = size;
 }

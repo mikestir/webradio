@@ -37,7 +37,7 @@
 static map<string,AudioStreamManager*> streams;
 
 AudioStreamManager::AudioStreamManager(const string &name) :
-	SampleSink(name, "AudioStreamManager")
+	IOBlock(name, "AudioStreamManager")
 {
 	pthread_mutex_init(&mutex, NULL);
 	encoder = NULL;
@@ -62,13 +62,15 @@ void AudioStreamManager::deinit()
 	encoder = NULL;
 }
 
-bool AudioStreamManager::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
+int AudioStreamManager::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
 {
+	const float *in = (const float*)inbuffer;
+
 	if (_consumers.size() == 0)
 		return true; // silently do nothing if no clients
 
 	/* Encode to MP3 and push to all registered consumers */
-	produce(encoder->encode(inBuffer));
+	produce(encoder->encode(vector<float>(in, in + inframes * inputChannels())));
 	return true;
 }
 

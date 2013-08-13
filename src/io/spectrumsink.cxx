@@ -21,6 +21,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <vector>
+
 #include <fftw3.h>
 #include <string.h>
 #include <math.h>
@@ -28,12 +30,14 @@
 #include "debug.h"
 #include "spectrumsink.h"
 
-// FIXME: define M_PI
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 /* NOTE: Accepts either real or interleaved IQ samples depending on the
  * number of channels specified */
 SpectrumSink::SpectrumSink(const string &name) :
-			SampleSink(name, "SpectrumSink"),
+			IOBlock(name, "SpectrumSink"),
 			inbuf(NULL), outbuf(NULL), inoffset(0),
 			_fftSize(DEFAULT_FFT_SIZE)
 {
@@ -85,10 +89,10 @@ void SpectrumSink::deinit()
 	inbuf = outbuf = NULL;
 }
 
-bool SpectrumSink::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
+int SpectrumSink::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
 {
-	const float *in = (const float*)inBuffer.data();
-	unsigned int nframes = inBuffer.size() / inputChannels();
+	const float *in = (const float*)inbuffer;
+	unsigned int nframes = inframes;
 	
 	/* FIXME: This currently assumes 2 channels.  It is also pointless
 	 * converting the entire input buffer if there is no output queue */
@@ -119,7 +123,7 @@ bool SpectrumSink::process(const vector<sample_t> &inBuffer, vector<sample_t> &o
 		nframes -= blocksize;
 		in += blocksize * inputChannels();
 	}
-	return true;
+	return 0;
 }
 
 void SpectrumSink::getSpectrum(float *magnitudes)

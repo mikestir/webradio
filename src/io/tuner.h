@@ -26,20 +26,20 @@
 
 #include <string>
 
-#include "samplesource.h"
+#include "ioblock.h"
 
 using namespace std;
 
 #define DEFAULT_TUNER_SAMPLE_RATE	1200000
 #define DEFAULT_TUNER_CHANNELS		2
 
-class Tuner : public SampleSource
+class Tuner : public SourceBlock
 {
 public:
 	Tuner(
 			const string &name = "<undefined>",
-			const string &type = "Tuner") :
-			SampleSource(name, type),
+			const string &blockType = "Tuner") :
+			SourceBlock(name, blockType),
 			_centreFrequency(100000000),
 			_offsetPPM(0),
 			_AGC(true),

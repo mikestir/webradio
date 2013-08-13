@@ -29,7 +29,7 @@
 #include <fftw3.h>
 #include <pthread.h>
 
-#include "samplesink.h"
+#include "ioblock.h"
 
 #define DEFAULT_FFT_SIZE		512
 
@@ -41,7 +41,7 @@ using namespace std;
  * desired then the entire app needs to be updated to pass around doubles
  * instead of floats! */
 
-class SpectrumSink : public SampleSink
+class SpectrumSink : public IOBlock
 {
 public:
 	SpectrumSink(const string &name = "<undefined>");
@@ -52,9 +52,11 @@ public:
 
 	void getSpectrum(float *magnitudes); // FIXME: Better for clients to register for a callback?
 private:
+	Type inputType() { return DspBlock::Float; }
+	Type outputType() { return DspBlock::None; }
 	bool init();
 	void deinit();
-	bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
 
 	fftwf_complex *inbuf;
 	fftwf_complex *outbuf;

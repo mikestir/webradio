@@ -69,7 +69,7 @@ Json::Value TunerHandler::buildTunerInfo(FrontEnd *fe)
 
 	root["uri"] = "/tuners/" + fe->uuid();
 	root["name"] = fe->tuner()->name();
-	root["driver"] = fe->tuner()->type();
+	root["driver"] = fe->tuner()->blockType();
 	root["port"] = "";
 	root["serial_nr"] = fe->tuner()->serial();
 	root["manufacturer"] = fe->tuner()->manufacturer();

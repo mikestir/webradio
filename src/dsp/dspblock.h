@@ -36,25 +36,14 @@
 #include <vector>
 #include <string>
 
-#define DEFAULT_SAMPLE_RATE			48000
-#define DEFAULT_CHANNELS			2
-#define DEFAULT_BLOCK_SIZE			16384
-
 using namespace std;
-
-typedef float sample_t;
-
-class DspBlock;
-class DspSource;
 
 class DspBlock
 {
 public:
-	friend class DspSource;
-
 	DspBlock(
 			const string &name = "<undefined>",
-			const string &type = "DspBlock");
+			const string &blockType = "DspBlock");
 	virtual ~DspBlock();
 
 	void connect(DspBlock *block);
@@ -76,24 +65,57 @@ public:
 	bool isRunning() const { return _isRunning; }
 
 	const string& name() const { return _name; }
-	const string& type() const { return _type; }
+	const string& blockType() const { return _blockType; }
+	
 protected:
-	/* Subclasses must implement these to do the actual work */
-	virtual bool init() { return false; } /*=0; FIXME: gets called under some circumstances! */
-	virtual void deinit() {} /*=0; FIXME: gets called under some circumstances! */
-	virtual bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	enum Type {
+		None = 0, // defines source or sink
+		Float,
+		Int8,
+		Int16,
+		Int32,
+	};
 
-	/* Blocks may adjust output sample rate and channel count during
-	 * startup */
-	unsigned int 		_outputSampleRate;
-	unsigned int 		_outputChannels;
+	/*!
+	 * \brief Algorithm input type
+	 */
+	virtual Type inputType() =0;
+	
+	/*!
+	 * \brief Algorithm output type
+	 */
+	virtual Type outputType() =0;
+	
+	/*!
+	 * \brief Perform one-time initialisation when pipeline is starting
+	 * \return Success or failure
+	 */
+	virtual bool init() =0;
+	
+	/*!
+	 * \brief Perform algorithm specific clean-up when pipeline is stopping
+	 */
+	virtual void deinit() =0;
+	
+	/*!
+	 * \brief Execute algorithm into output buffer
+	 *
+	 * The output buffer will be sized automatically prior to calling, based
+	 * on the _outputSampleRate set during startup.
+	 *
+	 * \param inbuffer		Pointer to input buffer (algorithm must cast to required type)
+	 * \param inframes		Number of frames in input buffer
+	 * \param outbuffer		Pointer to output buffer (algorithm must cast to required type)
+	 * \param outframes		Maximum number of frames to return in output buffer
+	 * \return				Number of frames actually returned or negative error code
+	 */
+	virtual int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes) =0;
 
-private:
 	/* Setters, start, stop and run methods are not part of the public
 	 * API except where exported by a source */
 	bool start();
 	void stop();
-	bool run(const vector<sample_t> &inBuffer);
+	bool run(const void *inbuffer, unsigned int inframes);
 
 	/* Producer blocks call these in their attached consumers to propagate
 	 * output sample rate/channel count.  They are simply setters - the
@@ -102,8 +124,20 @@ private:
 	void setSampleRate(unsigned int rate);
 	void setChannels(unsigned int channels);
 
+#if 0 // For dynamic sample rate support
+	/* Algorithms may change sample rate and output channels as required
+	 * (although this is an expensive operation).  The change will propagated
+	 * to the rest of the pipeline. */
+	void setOutputSampleRate(unsigned int rate);
+	void setOutputChannels(unsigned int channels);
+#endif
+
+	/* Algorithm may update these during startup */
+	unsigned int 		_outputSampleRate;
+	unsigned int 		_outputChannels;
+private:
 	const string		_name;
-	const string		_type;
+	const string		_blockType;
 	unsigned int 		_inputSampleRate;
 	unsigned int 		_inputChannels;
 	unsigned int		_decimation; // times
@@ -115,29 +149,10 @@ private:
 #endif
 	bool				_isRunning;
 
-	vector<sample_t>	buffer;
+	void				*outbuffer;
+	unsigned int		nelements;
+	
 	vector<DspBlock*>	consumers;
 };
-
-class DspSource : public DspBlock
-{
-public:
-	DspSource(
-			const string &name = "<undefined>",
-			const string &type = "DspSource");
-	virtual ~DspSource();
-
-	unsigned int blockSize() const { return _blockSize; }
-
-	bool start() { return DspBlock::start(); }
-	void stop() { DspBlock::stop(); }
-	bool run() { return DspBlock::run(vector<sample_t>(_blockSize)); }
-	void setSampleRate(unsigned int rate) { DspBlock::setSampleRate(rate); }
-	void setChannels(unsigned int channels) { DspBlock::setChannels(channels); }
-	void setBlockSize(unsigned int bytes);
-private:
-	unsigned int		_blockSize;
-};
-
 
 #endif /* DSPBLOCK_H */

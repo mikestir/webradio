@@ -88,13 +88,12 @@ void DownConverter::deinit()
 
 }
 
-bool DownConverter::process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer)
+int DownConverter::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
 {
-	const float *in = (const float*)inBuffer.data();
-	float *out = (float*)outBuffer.data();
-	unsigned int nframes = inBuffer.size() / inputChannels();
+	const float *in = (const float*)inbuffer;
+	float *out = (float*)outbuffer;
 
-	while (nframes--) {
+	for (unsigned int n = 0; n < inframes; n++) {
 		/* NCO */
 		unsigned int sinidx, cosidx;
 		sinidx = phase >> LOOKUP_SHIFT;
@@ -110,6 +109,6 @@ bool DownConverter::process(const vector<sample_t> &inBuffer, vector<sample_t> &
 		*out++ = q * sinTable[cosidx] - i * sinTable[sinidx]; // Q
 	}
 
-	return true;
+	return (int)inframes;
 }
 
