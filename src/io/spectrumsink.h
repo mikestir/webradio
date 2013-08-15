@@ -59,7 +59,6 @@ private:
 	fftwf_complex *inbuf;
 	fftwf_complex *outbuf;
 	fftwf_plan p;
-	unsigned int inoffset;
 	
 	pthread_mutex_t mutex;
 	

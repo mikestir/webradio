@@ -22,9 +22,9 @@
  */
 
 #include <vector>
+#include <algorithm>
 
 #include <fftw3.h>
-#include <string.h>
 #include <math.h>
 
 #include "debug.h"
@@ -38,7 +38,7 @@
  * number of channels specified */
 SpectrumSink::SpectrumSink(const string &name) :
 			IOBlock(DspData::Float, DspData::None, name, "SpectrumSink"),
-			inbuf(NULL), outbuf(NULL), inoffset(0),
+			inbuf(NULL), outbuf(NULL),
 			_fftSize(DEFAULT_FFT_SIZE)
 {
 	pthread_mutex_init(&mutex, NULL);
@@ -63,12 +63,15 @@ void SpectrumSink::setFftSize(unsigned int size)
 
 bool SpectrumSink::init()
 {
-	/* FIXME: Check number of channels, select appropriate plan */
+	// FIXME: Might there be a case for real inputs?
+	if (inputChannels() != 2) {
+		LOG_ERROR("Expected IQ input\n");
+		return false;
+	}
 
 	/* FIXME: Handle real->complex for spectrum of real signals */
 	inbuf = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * _fftSize);
 	outbuf = (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * _fftSize);
-	inoffset = 0;
 	p = fftwf_plan_dft_1d(_fftSize, inbuf, outbuf, FFTW_FORWARD, FFTW_ESTIMATE);
 
 	/* Calculate Hamming window */
@@ -92,37 +95,33 @@ void SpectrumSink::deinit()
 bool SpectrumSink::process(const DspData &in, DspData &out)
 {
 	const float *inptr = (const float*)in.data();
-	unsigned int nframes = in.size() / 2;
 	
-	/* FIXME: This currently assumes 2 channels.  It is also pointless
-	 * converting the entire input buffer if there is no output queue */
+	// FIXME: Support for real (1 channel) inputs?
+
+	if (in.size() / 2 < _fftSize) {
+		LOG_ERROR("Block size must be >= FFT size\n");
+		return false;
+	}
 
 	/* NOTE: Must use float version of FFTW because we expect
 	 * fftw_complex to be float[2] not double[2] to match our
 	 * sample type.  This code should work for both real and
 	 * complex DFTs (_channels = 1 or 2) as long as the plan is
-	 * configured correctly first */
-	while (nframes) {
-		unsigned int blocksize = _fftSize - inoffset;
-		if (blocksize > nframes)
-			blocksize = nframes;
-		memcpy(&inbuf[inoffset], inptr, blocksize * inputChannels() * sizeof(float));
-		inoffset += blocksize;
-		if (inoffset == _fftSize) {
-			/* Apply window */
-			for (unsigned int n = 0; n < _fftSize; n++) {
-				inbuf[n][0] *= window[n];
-				inbuf[n][1] *= window[n];
-			}
+	 * configured correctly first.
+	 *
+	 * Since this is asynchronous with the browser we just
+	 * FFT the first FFTSIZE samples of each block
+	 */
 
-			pthread_mutex_lock(&mutex);
-			fftwf_execute(p);
-			pthread_mutex_unlock(&mutex);
-			inoffset = 0;
-		}
-		nframes -= blocksize;
-		inptr += blocksize * inputChannels();
+	/* Copy input buffer and apply window */
+	for (unsigned int n = 0; n < _fftSize; n++) {
+		inbuf[n][0] = *inptr++ * window[n];
+		inbuf[n][1] = *inptr++ * window[n];
 	}
+
+	pthread_mutex_lock(&mutex);
+	fftwf_execute(p);
+	pthread_mutex_unlock(&mutex);
 
 	return true;
 }
