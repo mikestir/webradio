@@ -30,7 +30,10 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-Demodulator::Demodulator(const string &name) : DspBlock(name, "AMDemod"),
+Demodulator::Demodulator(const string &name) :
+	DspBlock(
+		DspData::Float, DspData::Float,
+		name, "AMDemod"),
 	_mode(AM),
 	prev_i(0.0), prev_q(0.0)
 {
@@ -74,18 +77,20 @@ void Demodulator::deinit()
 
 }
 
-int Demodulator::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
+bool Demodulator::process(const DspData &in, DspData &out)
 {
-	const float *in = (const float*)inbuffer;
-	float *out = (float*)outbuffer;
+	out.resize(in.size() / 2);
 
-	for (unsigned int n = 0; n < inframes; n++) {
-		float i = *in++;
-		float q = *in++;
+	const float *inptr = (const float*)in.data();
+	float *outptr = (float*)out.data();
+
+	for (unsigned int n = 0; n < in.size() / 2; n++) {
+		float i = *inptr++;
+		float q = *inptr++;
 
 		switch (_mode) {
 		case AM:
-			*out++ = sqrt(i*i + q*q);
+			*outptr++ = sqrt(i*i + q*q);
 			break;
 		case FM:
 			// multiply conjugate of previous sample
@@ -93,13 +98,13 @@ int Demodulator::process(const void *inbuffer, unsigned int inframes, void *outb
 			ii = i * prev_i + q * prev_q;
 			qq = q * prev_i - i * prev_q;
 
-			*out++ = atan2f(ii,qq) / M_PI / 2.0;
+			*outptr++ = atan2f(ii,qq) / M_PI / 2.0;
 			break;
 		case USB:
-			*out++ = i + q;
+			*outptr++ = i + q;
 			break;
 		case LSB:
-			*out++ = i - q;
+			*outptr++ = i - q;
 			break;
 		default:
 			LOG_ERROR("Bad mode\n");
@@ -110,5 +115,5 @@ int Demodulator::process(const void *inbuffer, unsigned int inframes, void *outb
 		prev_q = q;
 	}
 
-	return (int)inframes;
+	return true;
 }

@@ -51,10 +51,9 @@ public:
 	void setGainDB(float gain);
 
 private:
-	Type outputType() { return DspBlock::Float; }
 	bool init();
 	void deinit();
-	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
+	bool process(const DspData &in, DspData &out);
 
 	void dataReady(unsigned char *buf, unsigned int len);
 

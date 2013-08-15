@@ -36,11 +36,9 @@ public:
 	~RandSource();
 
 protected:
-	Type outputType() { return DspBlock::Float; }
-
 	bool init();
 	void deinit();
-	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
+	bool process(const DspData &in, DspData &out);
 };
 
 #endif /* RANDSOURCE_H_ */

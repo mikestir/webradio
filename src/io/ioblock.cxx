@@ -13,8 +13,9 @@
 
 #define DEFAULT_BLOCK_SIZE		16384
 
-IOBlock::IOBlock(const string &name, const string &blockType) :
-	DspBlock(name, blockType),
+IOBlock::IOBlock(DspData::Type intype, DspData::Type outtype,
+		const string &name, const string &blockType) :
+	DspBlock(intype, outtype, name, blockType),
 	_subdevices(),
 	_subdevice("")
 {
@@ -36,9 +37,11 @@ void IOBlock::setSubdevice(const string &subdevice)
 	_subdevice = subdevice;
 }
 
-SourceBlock::SourceBlock(const string &name, const string &blockType) :
-	IOBlock(name, blockType),
-	_blockSize(DEFAULT_BLOCK_SIZE)
+SourceBlock::SourceBlock(DspData::Type outtype,
+		const string &name, const string &blockType) :
+	IOBlock(DspData::None, outtype, name, blockType),
+	_blockSize(DEFAULT_BLOCK_SIZE),
+	dummy(DspData::None, DEFAULT_BLOCK_SIZE)
 {
 
 }
@@ -60,7 +63,7 @@ void SourceBlock::stop()
 
 bool SourceBlock::run()
 {
-	return DspBlock::run(NULL, _blockSize);
+	return DspBlock::run(dummy);
 }
 
 void SourceBlock::setSampleRate(unsigned int rate)
@@ -78,7 +81,9 @@ void SourceBlock::setBlockSize(unsigned int size)
 	if (isRunning())
 		return;
 
-	LOG_DEBUG("Setting source block %s:%s block size to %u frames\n",
+	LOG_DEBUG("Setting source block %s:%s block size to %u elements\n",
 		this->blockType().c_str(), this->name().c_str(), size);
+
 	_blockSize = size;
+	dummy.resize(_blockSize);
 }

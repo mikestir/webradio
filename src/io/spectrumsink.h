@@ -52,11 +52,9 @@ public:
 
 	void getSpectrum(float *magnitudes); // FIXME: Better for clients to register for a callback?
 private:
-	Type inputType() { return DspBlock::Float; }
-	Type outputType() { return DspBlock::None; }
 	bool init();
 	void deinit();
-	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
+	bool process(const DspData &in, DspData &out);
 
 	fftwf_complex *inbuf;
 	fftwf_complex *outbuf;

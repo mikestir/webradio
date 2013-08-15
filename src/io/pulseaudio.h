@@ -41,11 +41,9 @@ public:
 	~PulseAudioSource();
 
 private:
-	Type outputType() { return DspBlock::Float; }
-
 	bool init();
 	void deinit();
-	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
+	bool process(const DspData &in, DspData &out);
 
 	pa_sample_spec ss;
 	pa_simple *pa;
@@ -58,12 +56,9 @@ public:
 	~PulseAudioSink();
 
 private:
-	Type inputType() { return DspBlock::Float; }
-	Type outputType() { return DspBlock::None; }
-
 	bool init();
 	void deinit();
-	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
+	bool process(const DspData &in, DspData &out);
 
 	pa_sample_spec ss;
 	pa_simple *pa;

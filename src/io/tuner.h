@@ -37,9 +37,10 @@ class Tuner : public SourceBlock
 {
 public:
 	Tuner(
+			DspData::Type outtype,
 			const string &name = "<undefined>",
 			const string &blockType = "Tuner") :
-			SourceBlock(name, blockType),
+			SourceBlock(outtype, name, blockType),
 			_centreFrequency(100000000),
 			_offsetPPM(0),
 			_AGC(true),

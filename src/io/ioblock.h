@@ -16,6 +16,7 @@ class IOBlock : public DspBlock
 {
 public:
 	IOBlock(
+			DspData::Type intype, DspData::Type outtype,
 			const string &name = "<undefined>",
 			const string &blockType = "IOBlock");
 	virtual ~IOBlock();
@@ -36,6 +37,7 @@ class SourceBlock : public IOBlock
 {
 public:
 	SourceBlock(
+			DspData::Type outtype,
 			const string &name = "<undefined>",
 			const string &blockType = "SourceBlock");
 	virtual ~SourceBlock();
@@ -48,11 +50,10 @@ public:
 
 	void setSampleRate(unsigned int rate);
 	void setChannels(unsigned int channels);
-	void setBlockSize(unsigned int size); // frames
-protected:
-	Type inputType() { return DspBlock::None; }
+	void setBlockSize(unsigned int size); // elements
 private:
 	unsigned int _blockSize;
+	DspData	dummy;
 };
 
 

@@ -38,15 +38,57 @@
 
 using namespace std;
 
+class DspData
+{
+public:
+	DspData(const DspData &other);
+
+	enum Type {
+		None = 0, // defines source or sink
+		Float,
+		Int8,
+		Int16,
+		Int32,
+	};
+
+	DspData(Type t);
+	DspData(Type t, unsigned int nelements);
+	virtual ~DspData();
+
+	/*! \brief Returns pointer to data */
+	void* data() { return _data; }
+	/*! \brief Returns const pointer to immutable data */
+	const void* data() const { return (const void*)_data; }
+	/*! \brief Returns size of data (number of elements) */
+	unsigned int size() const { return _size; }
+	/*! \brief Returns data type */
+	Type type() const { return _type; }
+
+	/*!
+	 * \brief Set size of data area (number of elements)
+	 *
+	 * This will increase the capacity of the buffer using realloc
+	 * if necessary.  Resizing down does not result in reallocation.
+	 */
+	void resize(unsigned int nelements);
+private:
+	void* _data;
+	unsigned int _size;
+	unsigned int _capacity;
+	Type _type;
+};
+
 class DspBlock
 {
 public:
 	DspBlock(
+			DspData::Type intype,
+			DspData::Type outtype,
 			const string &name = "<undefined>",
 			const string &blockType = "DspBlock");
 	virtual ~DspBlock();
 
-	void connect(DspBlock *block);
+	bool connect(DspBlock *block);
 	void disconnect(DspBlock *block);
 
 	unsigned int inputSampleRate() const { return _inputSampleRate; }
@@ -64,28 +106,12 @@ public:
 #endif
 	bool isRunning() const { return _isRunning; }
 
+	DspData::Type inputType() const { return _inputType; }
+	DspData::Type outputType() const { return _outputType; }
 	const string& name() const { return _name; }
 	const string& blockType() const { return _blockType; }
 	
 protected:
-	enum Type {
-		None = 0, // defines source or sink
-		Float,
-		Int8,
-		Int16,
-		Int32,
-	};
-
-	/*!
-	 * \brief Algorithm input type
-	 */
-	virtual Type inputType() =0;
-	
-	/*!
-	 * \brief Algorithm output type
-	 */
-	virtual Type outputType() =0;
-	
 	/*!
 	 * \brief Perform one-time initialisation when pipeline is starting
 	 * \return Success or failure
@@ -100,22 +126,16 @@ protected:
 	/*!
 	 * \brief Execute algorithm into output buffer
 	 *
-	 * The output buffer will be sized automatically prior to calling, based
-	 * on the _outputSampleRate set during startup.
+	 * The algorithm must resize the output buffer as required
 	 *
-	 * \param inbuffer		Pointer to input buffer (algorithm must cast to required type)
-	 * \param inframes		Number of frames in input buffer
-	 * \param outbuffer		Pointer to output buffer (algorithm must cast to required type)
-	 * \param outframes		Maximum number of frames to return in output buffer
-	 * \return				Number of frames actually returned or negative error code
 	 */
-	virtual int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes) =0;
+	virtual bool process(const DspData &in, DspData &out) =0;
 
 	/* Setters, start, stop and run methods are not part of the public
 	 * API except where exported by a source */
 	bool start();
 	void stop();
-	bool run(const void *inbuffer, unsigned int inframes);
+	bool run(const DspData &in);
 
 	/* Producer blocks call these in their attached consumers to propagate
 	 * output sample rate/channel count.  They are simply setters - the
@@ -136,6 +156,8 @@ protected:
 	unsigned int 		_outputSampleRate;
 	unsigned int 		_outputChannels;
 private:
+	DspData::Type		_inputType;
+	DspData::Type		_outputType;
 	const string		_name;
 	const string		_blockType;
 	unsigned int 		_inputSampleRate;
@@ -148,11 +170,8 @@ private:
 	uint64_t			_totalOut; // frames
 #endif
 	bool				_isRunning;
-
-	void				*outbuffer;
-	unsigned int		nelements;
-	
 	vector<DspBlock*>	consumers;
+	DspData				data;
 };
 
 #endif /* DSPBLOCK_H */

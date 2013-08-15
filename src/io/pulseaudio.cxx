@@ -33,7 +33,7 @@
 #define CAPTURE_STREAM_NAME		"Capture"
 
 PulseAudioSource::PulseAudioSource(const string &name) :
-	SourceBlock(name, "PulseAudioSource")
+	SourceBlock(DspData::Float, name, "PulseAudioSource")
 {
 	/* Default sample spec */
 	ss.format = PA_SAMPLE_FLOAT32LE;
@@ -80,23 +80,23 @@ void PulseAudioSource::deinit()
 	pa = NULL;
 }
 
-int PulseAudioSource::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
+bool PulseAudioSource::process(const DspData &in, DspData &out)
 {
-	unsigned int outsize = outframes * outputChannels() * sizeof(float);
 	int error;
 
-	if (pa_simple_read(pa, (float*)outbuffer, outsize, &error) < 0) {
+	out.resize(in.size());
+	if (pa_simple_read(pa, (float*)out.data(), out.size() * sizeof(float), &error) < 0) {
 		LOG_ERROR("Capture read failed: %s\n", pa_strerror(error));
 		return false;
 	}
-	return (int)outframes;
+	return true;
 }
 
 /*******************************/
 
 
 PulseAudioSink::PulseAudioSink(const string &name) :
-	IOBlock(name, "PulseAudioSink")
+	IOBlock(DspData::Float, DspData::None, name, "PulseAudioSink")
 {
 	/* Default sample spec */
 	ss.format = PA_SAMPLE_FLOAT32LE;
@@ -140,14 +140,13 @@ void PulseAudioSink::deinit()
 	pa = NULL;
 }
 
-int PulseAudioSink::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
+bool PulseAudioSink::process(const DspData &in, DspData &out)
 {
-	unsigned int insize = inframes * inputChannels() * sizeof(float);
 	int error;
 
-	if (pa_simple_write(pa, (const float*)inbuffer, insize, &error) < 0) {
+	if (pa_simple_write(pa, (const float*)in.data(), in.size() * sizeof(float), &error) < 0) {
 		LOG_ERROR("Playback write failed: %s\n", pa_strerror(error));
 		return false;
 	}
-	return 0; // sink returns no data
+	return true;
 }

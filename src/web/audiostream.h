@@ -62,12 +62,9 @@ public:
 	void registerConsumer(AudioStreamHandler *consumer);
 	void deregisterConsumer(AudioStreamHandler *consumer);
 private:
-	Type inputType() { return DspBlock::Float; }
-	Type outputType() { return DspBlock::None; }
-
 	bool init();
 	void deinit();
-	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
+	bool process(const DspData &in, DspData &out);
 
 	void produce(const vector<char> &stream);
 	vector<AudioStreamHandler*> _consumers;

@@ -37,7 +37,7 @@
 /* NOTE: Accepts either real or interleaved IQ samples depending on the
  * number of channels specified */
 SpectrumSink::SpectrumSink(const string &name) :
-			IOBlock(name, "SpectrumSink"),
+			IOBlock(DspData::Float, DspData::None, name, "SpectrumSink"),
 			inbuf(NULL), outbuf(NULL), inoffset(0),
 			_fftSize(DEFAULT_FFT_SIZE)
 {
@@ -89,10 +89,10 @@ void SpectrumSink::deinit()
 	inbuf = outbuf = NULL;
 }
 
-int SpectrumSink::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
+bool SpectrumSink::process(const DspData &in, DspData &out)
 {
-	const float *in = (const float*)inbuffer;
-	unsigned int nframes = inframes;
+	const float *inptr = (const float*)in.data();
+	unsigned int nframes = in.size() / 2;
 	
 	/* FIXME: This currently assumes 2 channels.  It is also pointless
 	 * converting the entire input buffer if there is no output queue */
@@ -106,7 +106,7 @@ int SpectrumSink::process(const void *inbuffer, unsigned int inframes, void *out
 		unsigned int blocksize = _fftSize - inoffset;
 		if (blocksize > nframes)
 			blocksize = nframes;
-		memcpy(&inbuf[inoffset], in, blocksize * inputChannels() * sizeof(float));
+		memcpy(&inbuf[inoffset], inptr, blocksize * inputChannels() * sizeof(float));
 		inoffset += blocksize;
 		if (inoffset == _fftSize) {
 			/* Apply window */
@@ -121,9 +121,10 @@ int SpectrumSink::process(const void *inbuffer, unsigned int inframes, void *out
 			inoffset = 0;
 		}
 		nframes -= blocksize;
-		in += blocksize * inputChannels();
+		inptr += blocksize * inputChannels();
 	}
-	return 0;
+
+	return true;
 }
 
 void SpectrumSink::getSpectrum(float *magnitudes)

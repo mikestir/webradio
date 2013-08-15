@@ -31,9 +31,83 @@
 #include "debug.h"
 #include "dspblock.h"
 
-DspBlock::DspBlock(const string &name, const string &type) :
+DspData::DspData(const DspData &other)
+{
+	/* Copy constructor */
+	_type = other.type();
+	resize(other.size());
+
+	switch (_type) {
+	case Float:
+		copy((const float*)other.data(), (const float*)other.data() + other.size(), (float*)data());
+		break;
+	case Int8:
+		copy((const int8_t*)other.data(), (const int8_t*)other.data() + other.size(), (int8_t*)data());
+		break;
+	case Int16:
+		copy((const int16_t*)other.data(), (const int16_t*)other.data() + other.size(), (int16_t*)data());
+		break;
+	case Int32:
+		copy((const int32_t*)other.data(), (const int32_t*)other.data() + other.size(), (int32_t*)data());
+		break;
+	default:
+		LOG_ERROR("Unsupported data type %d\n", (int)_type);
+	}
+}
+
+DspData::DspData(Type t) :
+			_data(NULL),
+			_size(0),
+			_capacity(0),
+			_type(t)
+{
+
+}
+
+DspData::DspData(Type t, unsigned int nelements) :
+			_data(NULL),
+			_size(0),
+			_capacity(0),
+			_type(t)
+{
+	resize(nelements);
+}
+
+DspData::~DspData()
+{
+	if (_data)
+		free(_data);
+}
+
+void DspData::resize(unsigned int nelements)
+{
+	if (nelements > _capacity) {
+		unsigned int size;
+
+		switch (_type) {
+		case None: size = 0; break;
+		case Float: size = sizeof(float); break;
+		case Int8: size = sizeof(int8_t); break;
+		case Int16: size = sizeof(int16_t); break;
+		case Int32: size = sizeof(int32_t); break;
+		default:
+			LOG_ERROR("Unsupported data type %d\n", (int)_type);
+			size = 0;
+		}
+		_data = realloc(_data, nelements * size);
+		_capacity = nelements;
+		LOG_DEBUG("(re)allocated type %d data store for %u elements\n",
+			(int)_type, nelements);
+	}
+	_size = nelements;
+}
+
+DspBlock::DspBlock(DspData::Type intype, DspData::Type outtype, 
+	const string &name, const string &type) :
 			_outputSampleRate(0),
 			_outputChannels(0),
+			_inputType(intype),
+			_outputType(outtype),
 			_name(name),
 			_blockType(type),
 			_inputSampleRate(0),
@@ -44,8 +118,7 @@ DspBlock::DspBlock(const string &name, const string &type) :
 			_totalIn(0), _totalOut(0),
 #endif
 			_isRunning(false),
-			outbuffer(NULL),
-			nelements(0)
+			data(outtype)
 {
 
 }
@@ -56,8 +129,15 @@ DspBlock::~DspBlock()
 		stop();
 }
 
-void DspBlock::connect(DspBlock *block)
+bool DspBlock::connect(DspBlock *block)
 {
+	/* Type check */
+	if (block->inputType() != this->outputType()) {
+		LOG_ERROR("Type mismatch block %s:%s to %s:%s\n",
+			block->blockType().c_str(), block->name().c_str(),
+			this->blockType().c_str(), this->name().c_str());
+		return false;
+	}
 	if (_isRunning) {
 		/* Start downstream */
 		block->start();
@@ -68,13 +148,14 @@ void DspBlock::connect(DspBlock *block)
 		LOG_ERROR("Block %s:%s already connected to %s:%s\n",
 				block->blockType().c_str(), block->name().c_str(),
 				this->blockType().c_str(), this->name().c_str());
-		return;
+		return false;
 	}
 
 	consumers.push_back(block);
 	LOG_DEBUG("Added block %s:%s as consumer of %s:%s\n",
 			block->blockType().c_str(), block->name().c_str(),
 			this->blockType().c_str(), this->name().c_str());
+	return true;
 }
 
 void DspBlock::disconnect(DspBlock *block)
@@ -159,48 +240,13 @@ void DspBlock::stop()
 		_isRunning = false;
 		deinit();
 	}
-
-	/* Release output buffer */
-	if (nelements) {
-		free(outbuffer);
-		outbuffer = NULL;
-		nelements = 0;
-	}
 }
 
-bool DspBlock::run(const void *inbuffer, unsigned int inframes)
+bool DspBlock::run(const DspData &in)
 {
 	if (!_isRunning) {
 		LOG_ERROR("Pipeline not started\n");
 		return false;
-	}
-
-	/* Resize output buffer */
-	unsigned int outframes = inframes * _interpolation / _decimation;
-	if (nelements != outframes * _outputChannels) {
-		LOG_DEBUG("Resizing %s:%s buffer to %u frames (%u channels)\n",
-				blockType().c_str(), name().c_str(),
-				outframes, _outputChannels);
-		nelements = outframes * _outputChannels;
-		switch (outputType()) {
-		case Float:
-			outbuffer = realloc(outbuffer, nelements * sizeof(float));
-			break;
-		case Int8:
-			outbuffer = realloc(outbuffer, nelements * sizeof(int8_t));
-			break;
-		case Int16:
-			outbuffer = realloc(outbuffer, nelements * sizeof(int16_t));
-			break;
-		case Int32:
-			outbuffer = realloc(outbuffer, nelements * sizeof(int32_t));
-			break;
-		default:
-			LOG_ERROR("Unsupported output type\n");
-			nelements = 0;
-			outbuffer = NULL;
-			return false;
-		}
 	}
 
 #ifdef DSPBLOCK_PROFILE
@@ -209,8 +255,7 @@ bool DspBlock::run(const void *inbuffer, unsigned int inframes)
 #endif
 
 	/* Process */
-	// FIXME: Check actual generated frames
-	if (process(inbuffer, inframes, outbuffer, outframes) < 0) {
+	if (!process(in, data)) {
 		LOG_ERROR("Pipeline failed at block %s:%s\n", blockType().c_str(), name().c_str());
 		return false;
 	}
@@ -220,13 +265,14 @@ bool DspBlock::run(const void *inbuffer, unsigned int inframes)
 	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
 	_totalNanoseconds += (uint64_t)(end.tv_nsec - start.tv_nsec) +
 			(uint64_t)(end.tv_sec - start.tv_sec) * 1000000000ULL;
-	_totalIn += inframes;
-	_totalOut += outframes;
+	_totalIn += in.size() / _inputChannels;
+	if (_outputChannels)
+		_totalOut += data.size() / _outputChannels;
 #endif
 
 	/* Propagate result to all registered consumers */
 	for (vector<DspBlock*>::iterator it = consumers.begin(); it != consumers.end(); ++it)
-		if (!(*it)->run(outbuffer, outframes))
+		if (!(*it)->run(data))
 			return false;
 
 	return true;

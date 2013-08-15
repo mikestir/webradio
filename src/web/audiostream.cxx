@@ -37,7 +37,7 @@
 static map<string,AudioStreamManager*> streams;
 
 AudioStreamManager::AudioStreamManager(const string &name) :
-	IOBlock(name, "AudioStreamManager")
+	IOBlock(DspData::Float, DspData::None, name, "AudioStreamManager")
 {
 	pthread_mutex_init(&mutex, NULL);
 	encoder = NULL;
@@ -62,15 +62,15 @@ void AudioStreamManager::deinit()
 	encoder = NULL;
 }
 
-int AudioStreamManager::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
+bool AudioStreamManager::process(const DspData &in, DspData &out)
 {
-	const float *in = (const float*)inbuffer;
+	const float *inptr = (const float*)in.data();
 
 	if (_consumers.size() == 0)
 		return true; // silently do nothing if no clients
 
 	/* Encode to MP3 and push to all registered consumers */
-	produce(encoder->encode(vector<float>(in, in + inframes * inputChannels())));
+	produce(encoder->encode(vector<float>(inptr, inptr + in.size())));
 	return true;
 }
 

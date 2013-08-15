@@ -35,14 +35,15 @@
 #define N_BUFFERS			(1 << (N_BUFFERS_LOG2))
 
 RtlSdrTuner::RtlSdrTuner(const string &name) :
-	Tuner(name, "RtlSdrTuner"), dev(NULL), head(0), tail(0)
+	Tuner(DspData::Float, name, "RtlSdrTuner"),
+	dev(NULL), head(0), tail(0)
 {
 	unsigned int deviceCount;
 
 	pthread_mutex_init(&mutex, NULL);
 	pthread_cond_init(&readyCondition, NULL);
 	
-	_outputChannels = 2; // only supports I/Q sampling
+	setChannels(2); // only support I/Q sampling
 	deviceCount = rtlsdr_get_device_count();
 
 	LOG_DEBUG("Found %d devices\n", deviceCount);
@@ -86,8 +87,6 @@ void RtlSdrTuner::callback(unsigned char *buf, unsigned int len, void *arg)
 
 void RtlSdrTuner::dataReady(unsigned char *buf, unsigned int len)
 {
-	unsigned int blockframes = blockSize() * outputChannels();
-
 	/* Blocks of samples from the async USB handler come here and are
 	 * pushed into a ring of blockSize()ed buffers.  These can be popped
 	 * asynchronously by the pipeline thread. */
@@ -97,20 +96,20 @@ void RtlSdrTuner::dataReady(unsigned char *buf, unsigned int len)
 		/* If tail is full then we have a buffer overflow */
 		vector<float> *buffer = &ringBuffer[tail];
 #if 0
-		LOG_DEBUG("len = %u tail %u (%u avail)\n", len, tail, blockframes - (unsigned int)buffer->size());
+		LOG_DEBUG("len = %u tail %u (%u avail)\n", len, tail, blockSize() - (unsigned int)buffer->size());
 #endif
-		if (buffer->size() == blockframes) {
+		if (buffer->size() == blockSize()) {
 			LOG_ERROR("Lost %u bytes\n", len);
 			break;
 		}
 
 		pthread_mutex_lock(&mutex);
-		while (len && buffer->size() < blockframes) {
+		while (len && buffer->size() < blockSize()) {
 			buffer->push_back(((float)(*buf++) - 128.0) / 128.0);
 			len--;
 		}
 
-		if (buffer->size() == blockframes) {
+		if (buffer->size() == blockSize()) {
 			/* Give new buffer to app */
 			tail = (tail + 1) & (N_BUFFERS - 1);
 			pthread_cond_signal(&readyCondition);
@@ -192,6 +191,12 @@ bool RtlSdrTuner::init()
 		return false;
 	}
 
+	if (inputChannels() != 2) {
+		LOG_ERROR("Only IQ capture supported\n");
+		return false;
+	}
+	_outputChannels = inputChannels();
+
 	/* Subdevice refers to device serial number */
 	int index = rtlsdr_get_index_by_serial(subdevice().c_str());
 	if (index < 0) {
@@ -240,7 +245,7 @@ bool RtlSdrTuner::init()
 	/* Reserve capture buffer pool */
 	ringBuffer.resize(N_BUFFERS);
 	for (vector<vector<float> >::iterator it = ringBuffer.begin(); it != ringBuffer.end(); ++it) {
-		it->reserve(blockSize() * outputChannels());
+		it->reserve(blockSize());
 		it->resize(0);
 	}
 
@@ -265,18 +270,12 @@ void RtlSdrTuner::deinit()
 	vector<vector<float> >().swap(ringBuffer);
 }
 
-int RtlSdrTuner::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
+bool RtlSdrTuner::process(const DspData &in, DspData &out)
 {
-	float *out = (float*)outbuffer;
-
-	// FIXME: Should assert expected buffer sizes here (and in all algorithms)
-	// It is probably also easier if this is just implemented with a single
-	// large ring buffer and blocking read here
-
 	/* Pop ringbuffer, block if empty */
 	pthread_mutex_lock(&mutex);
 	vector<float> *nextbuffer = &ringBuffer[head];
-	while (nextbuffer->size() != blockSize() * outputChannels()) {
+	while (nextbuffer->size() != blockSize()) {
 #if 0
 		LOG_DEBUG("wait blockSize = %u, outBuffer.size = %u, head = %u (avail %u)\n",
 				blockSize(), (unsigned int)outBuffer.size(), head, (unsigned int)nextbuffer->size());
@@ -286,10 +285,15 @@ int RtlSdrTuner::process(const void *inbuffer, unsigned int inframes, void *outb
 #if 0
 	LOG_DEBUG("ready %u (avail %u)\n", head, (unsigned int)nextbuffer->size());
 #endif
-	copy(nextbuffer->begin(), nextbuffer->end(), out);
+
+	// FIXME: Can we add a "swap" method to DspData so we can do this
+	// like we did with single-type vectors?
+	out.resize(nextbuffer->size());
+	copy(nextbuffer->begin(), nextbuffer->end(), (float*)out.data());
 	nextbuffer->resize(0);
 	head = (head + 1) & (N_BUFFERS - 1);
 	pthread_mutex_unlock(&mutex);
+
 	return true;
 }
 

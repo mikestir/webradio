@@ -40,8 +40,9 @@
 #define LOOKUP_SHIFT	(PHASE_BITS - LOOKUP_BITS)
 
 DownConverter::DownConverter(const string &name) :
-	DspBlock(name, "DownConverter"),
-	filter(new LowPass(name)),
+	DspBlock(
+			DspData::Float, DspData::Float,
+			name, "DownConverter"),
 	_if(0),
 	phase(0), phaseStep(0)
 {
@@ -53,7 +54,7 @@ DownConverter::DownConverter(const string &name) :
 
 DownConverter::~DownConverter()
 {
-	delete filter;
+
 }
 
 void DownConverter::setIF(int hz)
@@ -69,7 +70,7 @@ void DownConverter::setIF(int hz)
 bool DownConverter::init()
 {
 	if (inputChannels() != 2) {
-		LOG_ERROR("Expect IQ input\n");
+		LOG_ERROR("Expected IQ input\n");
 		return false;
 	}
 
@@ -88,12 +89,14 @@ void DownConverter::deinit()
 
 }
 
-int DownConverter::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
+bool DownConverter::process(const DspData &in, DspData &out)
 {
-	const float *in = (const float*)inbuffer;
-	float *out = (float*)outbuffer;
+	out.resize(in.size());
 
-	for (unsigned int n = 0; n < inframes; n++) {
+	const float *inptr = (const float*)in.data();
+	float *outptr = (float*)out.data();
+
+	for (unsigned int n = 0; n < in.size() / 2; n++) {
 		/* NCO */
 		unsigned int sinidx, cosidx;
 		sinidx = phase >> LOOKUP_SHIFT;
@@ -103,12 +106,12 @@ int DownConverter::process(const void *inbuffer, unsigned int inframes, void *ou
 
 		/* Complex mixer - signal is multiplied by the complex conjugate of the
 		 * local oscillator */
-		float i = *in++;
-		float q = *in++;
-		*out++ = i * sinTable[cosidx] + q * sinTable[sinidx]; // I
-		*out++ = q * sinTable[cosidx] - i * sinTable[sinidx]; // Q
+		float i = *inptr++;
+		float q = *inptr++;
+		*outptr++ = i * sinTable[cosidx] + q * sinTable[sinidx]; // I
+		*outptr++ = q * sinTable[cosidx] - i * sinTable[sinidx]; // Q
 	}
 
-	return (int)inframes;
+	return true;
 }
 

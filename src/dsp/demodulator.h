@@ -51,12 +51,9 @@ public:
 	bool setModeString(const string &mode);
 
 private:
-	Type inputType() { return DspBlock::Float; }
-	Type outputType() { return DspBlock::Float; }
-
 	bool init();
 	void deinit();
-	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
+	bool process(const DspData &in, DspData &out);
 
 	Mode _mode;
 	vector<string> _modeStrings;

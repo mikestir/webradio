@@ -38,23 +38,15 @@ public:
 	DownConverter(const string &name = "<undefined>");
 	virtual ~DownConverter();
 
-	unsigned int bandwidth() const { return filter->passband(); }
-	void setBandwidth(unsigned int hz) { filter->setPassband(hz); }
-	unsigned int decimation() const { return filter->decimation(); }
-	void setDecimation(unsigned int n) { filter->setDecimation(n); }
 	int IF() const { return _if; }
 	void setIF(int hz);
 
 private:
-	Type inputType() { return DspBlock::Float; }
-	Type outputType() { return DspBlock::Float; }
-
 	bool init();
 	void deinit();
-	int process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes);
+	bool process(const DspData &in, DspData &out);
 
-	LowPass*	filter;
-	int			_if;
+	int				_if;
 
 	// NCO
 	vector<float>	sinTable;

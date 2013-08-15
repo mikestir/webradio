@@ -72,7 +72,7 @@ int main(int argc, char **argv)
 	fe->tuner()->setSubdevice(tunerid);
 	fe->tuner()->setCentreFrequency(124325000);
 	fe->tuner()->setSampleRate(2400000);
-	fe->tuner()->setBlockSize(102400);
+	fe->tuner()->setBlockSize(204800);
 	//fe->tuner()->setGainDB(50);
 	fe->tuner()->setAGC(true);
 	fe->tuner()->setOffsetPPM(25);

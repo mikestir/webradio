@@ -25,7 +25,8 @@
 
 #include "randsource.h"
 
-RandSource::RandSource(const string &name) : SourceBlock(name, "RandSource")
+RandSource::RandSource(const string &name) :
+	SourceBlock(DspData::Float, name, "RandSource")
 {
 
 }
@@ -49,12 +50,14 @@ void RandSource::deinit()
 
 }
 
-int RandSource::process(const void *inbuffer, unsigned int inframes, void *outbuffer, unsigned int outframes)
+bool RandSource::process(const DspData &in, DspData &out)
 {
-	float *out = (float*)outbuffer;
+	out.resize(in.size());
 
-	for (unsigned int n = 0; n < outframes * outputChannels(); n++)
-		*out++ = (float)(random() - RAND_MAX / 2) / (float(RAND_MAX / 2));
+	float *outptr = (float*)out.data();
 
-	return (int)outframes;
+	for (unsigned int n = 0; n < out.size() * outputChannels(); n++)
+		*outptr++ = (float)(random() - RAND_MAX / 2) / (float(RAND_MAX / 2));
+
+	return true;
 }
