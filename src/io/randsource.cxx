@@ -26,7 +26,7 @@
 #include "randsource.h"
 
 RandSource::RandSource(const string &name) :
-	SourceBlock(DspData::Float, name, "RandSource")
+	SourceBlock(DspData::Int16, name, "RandSource")
 {
 
 }
@@ -54,10 +54,10 @@ bool RandSource::process(const DspData &in, DspData &out)
 {
 	out.resize(in.size());
 
-	float *outptr = (float*)out.data();
+	short *outptr = (short*)out.data();
 
 	for (unsigned int n = 0; n < out.size() * outputChannels(); n++)
-		*outptr++ = (float)(random() - RAND_MAX / 2) / (float(RAND_MAX / 2));
+		*outptr++ = (short)random();
 
 	return true;
 }

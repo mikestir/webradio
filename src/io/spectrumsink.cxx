@@ -37,7 +37,7 @@
 /* NOTE: Accepts either real or interleaved IQ samples depending on the
  * number of channels specified */
 SpectrumSink::SpectrumSink(const string &name) :
-			IOBlock(DspData::Float, DspData::None, name, "SpectrumSink"),
+			IOBlock(DspData::Int16, DspData::None, name, "SpectrumSink"),
 			inbuf(NULL), outbuf(NULL),
 			_fftSize(DEFAULT_FFT_SIZE)
 {
@@ -94,7 +94,7 @@ void SpectrumSink::deinit()
 
 bool SpectrumSink::process(const DspData &in, DspData &out)
 {
-	const float *inptr = (const float*)in.data();
+	const short *inptr = (const short*)in.data();
 	
 	// FIXME: Support for real (1 channel) inputs?
 
@@ -115,8 +115,8 @@ bool SpectrumSink::process(const DspData &in, DspData &out)
 
 	/* Copy input buffer and apply window */
 	for (unsigned int n = 0; n < _fftSize; n++) {
-		inbuf[n][0] = *inptr++ * window[n];
-		inbuf[n][1] = *inptr++ * window[n];
+		inbuf[n][0] = ((float)(*inptr++) / 32768.0) * window[n];
+		inbuf[n][1] = ((float)(*inptr++) / 32768.0) * window[n];
 	}
 
 	pthread_mutex_lock(&mutex);

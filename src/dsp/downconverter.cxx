@@ -41,7 +41,7 @@
 
 DownConverter::DownConverter(const string &name) :
 	DspBlock(
-			DspData::Float, DspData::Float,
+			DspData::Int16, DspData::Float,
 			name, "DownConverter"),
 	_if(0),
 	phase(0), phaseStep(0)
@@ -93,7 +93,7 @@ bool DownConverter::process(const DspData &in, DspData &out)
 {
 	out.resize(in.size());
 
-	const float *inptr = (const float*)in.data();
+	const short *inptr = (const short*)in.data();
 	float *outptr = (float*)out.data();
 
 	for (unsigned int n = 0; n < in.size() / 2; n++) {
@@ -106,8 +106,8 @@ bool DownConverter::process(const DspData &in, DspData &out)
 
 		/* Complex mixer - signal is multiplied by the complex conjugate of the
 		 * local oscillator */
-		float i = *inptr++;
-		float q = *inptr++;
+		float i = (float)(*inptr++) / 32768.0;
+		float q = (float)(*inptr++) / 32768.0;
 		*outptr++ = i * sinTable[cosidx] + q * sinTable[sinidx]; // I
 		*outptr++ = q * sinTable[cosidx] - i * sinTable[sinidx]; // Q
 	}

@@ -31,7 +31,8 @@
 #include "debug.h"
 #include "dspblock.h"
 
-DspData::DspData(const DspData &other)
+DspData::DspData(const DspData &other) :
+			_data(NULL)
 {
 	/* Copy constructor */
 	_type = other.type();
@@ -101,6 +102,27 @@ void DspData::resize(unsigned int nelements)
 	}
 	_size = nelements;
 }
+
+void DspData::swap(DspData &other)
+{
+	if (other.type() != type()) {
+		LOG_ERROR("Can't swap buffers of differing type\n");
+		return;
+	}
+
+	void *otherdata = other._data;
+	unsigned int othercapacity = other._capacity;
+	unsigned int othersize = other._size;
+
+	other._data = _data;
+	other._capacity = _capacity;
+	other._size = _size;
+	_data = otherdata;
+	_capacity = othercapacity;
+	_size = othersize;
+}
+
+/*********************************/
 
 DspBlock::DspBlock(DspData::Type intype, DspData::Type outtype, 
 	const string &name, const string &type) :

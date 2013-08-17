@@ -34,8 +34,11 @@
 #define N_BUFFERS_LOG2		2
 #define N_BUFFERS			(1 << (N_BUFFERS_LOG2))
 
+#define TYPE				DspData::Int16
+#define TYPE_CONVERT(a)		(((short)(a) - 128) << 8)
+
 RtlSdrTuner::RtlSdrTuner(const string &name) :
-	Tuner(DspData::Float, name, "RtlSdrTuner"),
+	Tuner(TYPE, name, "RtlSdrTuner"),
 	dev(NULL), head(0), tail(0)
 {
 	unsigned int deviceCount;
@@ -94,7 +97,7 @@ void RtlSdrTuner::dataReady(unsigned char *buf, unsigned int len)
 	while (len) {
 
 		/* If tail is full then we have a buffer overflow */
-		vector<float> *buffer = &ringBuffer[tail];
+		DspData *buffer = &ringBuffer[tail];
 #if 0
 		LOG_DEBUG("len = %u tail %u (%u avail)\n", len, tail, blockSize() - (unsigned int)buffer->size());
 #endif
@@ -104,10 +107,25 @@ void RtlSdrTuner::dataReady(unsigned char *buf, unsigned int len)
 		}
 
 		pthread_mutex_lock(&mutex);
+#if 1
+		unsigned int start = buffer->size();
+		unsigned int add = blockSize() - start;
+
+		if (add > len)
+			add = len;
+		len -= add;
+
+		buffer->resize(start + add);
+		short *ptr = (short*)buffer->data() + start;
+		while (add--)
+			*ptr++ = TYPE_CONVERT(*buf++);
+
+#else // original vector version
 		while (len && buffer->size() < blockSize()) {
-			buffer->push_back(((float)(*buf++) - 128.0) / 128.0);
+			buffer->push_back(TYPE_CONVERT(*buf++));
 			len--;
 		}
+#endif
 
 		if (buffer->size() == blockSize()) {
 			/* Give new buffer to app */
@@ -243,11 +261,7 @@ bool RtlSdrTuner::init()
 	setGainDB(_gainDB);
 	
 	/* Reserve capture buffer pool */
-	ringBuffer.resize(N_BUFFERS);
-	for (vector<vector<float> >::iterator it = ringBuffer.begin(); it != ringBuffer.end(); ++it) {
-		it->reserve(blockSize());
-		it->resize(0);
-	}
+	ringBuffer.resize(N_BUFFERS, DspData(TYPE));
 
 	/* Set up async rx */
 	if (pthread_create(&thread, NULL, &RtlSdrTuner::thread_func, (void*)this)) {
@@ -262,19 +276,16 @@ void RtlSdrTuner::deinit()
 {
 	rtlsdr_cancel_async(dev);
 	pthread_join(thread, NULL);
+	rtlsdr_close(dev);
 	dev = NULL;
-
-	/* Release capture buffers */
-	for (vector<vector<float> >::iterator it = ringBuffer.begin(); it != ringBuffer.end(); ++it)
-		vector<float>().swap(*it);
-	vector<vector<float> >().swap(ringBuffer);
 }
 
 bool RtlSdrTuner::process(const DspData &in, DspData &out)
 {
-	/* Pop ringbuffer, block if empty */
 	pthread_mutex_lock(&mutex);
-	vector<float> *nextbuffer = &ringBuffer[head];
+
+	/* Pop ringbuffer, block if empty */
+	DspData *nextbuffer = &ringBuffer[head];
 	while (nextbuffer->size() != blockSize()) {
 #if 0
 		LOG_DEBUG("wait blockSize = %u, outBuffer.size = %u, head = %u (avail %u)\n",
@@ -286,14 +297,12 @@ bool RtlSdrTuner::process(const DspData &in, DspData &out)
 	LOG_DEBUG("ready %u (avail %u)\n", head, (unsigned int)nextbuffer->size());
 #endif
 
-	// FIXME: Can we add a "swap" method to DspData so we can do this
-	// like we did with single-type vectors?
-	out.resize(nextbuffer->size());
-	copy(nextbuffer->begin(), nextbuffer->end(), (float*)out.data());
-	nextbuffer->resize(0);
+	/* Fast swap with output buffer */
+	out.resize(0);
+	out.swap(*nextbuffer);
 	head = (head + 1) & (N_BUFFERS - 1);
-	pthread_mutex_unlock(&mutex);
 
+	pthread_mutex_unlock(&mutex);
 	return true;
 }
 

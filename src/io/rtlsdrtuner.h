@@ -62,7 +62,7 @@ private:
 
 	rtlsdr_dev_t*	dev;
 
-	vector<vector<float> >	ringBuffer;
+	vector<DspData>	ringBuffer;
 	unsigned int	head;
 	unsigned int	tail;
 	pthread_t		thread;

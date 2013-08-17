@@ -71,6 +71,9 @@ public:
 	 * if necessary.  Resizing down does not result in reallocation.
 	 */
 	void resize(unsigned int nelements);
+
+	/*! \brief Copy-free buffer swap */
+	void swap(DspData &other);
 private:
 	void* _data;
 	unsigned int _size;
