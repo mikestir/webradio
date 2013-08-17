@@ -81,7 +81,7 @@ protected:
 	/* Subclasses must implement these to do the actual work */
 	virtual bool init() { return false; } /*=0; FIXME: gets called under some circumstances! */
 	virtual void deinit() {} /*=0; FIXME: gets called under some circumstances! */
-	virtual bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer);
+	virtual bool process(const vector<sample_t> &inBuffer, vector<sample_t> &outBuffer) { return false; }
 
 	/* Blocks may adjust output sample rate and channel count during
 	 * startup */

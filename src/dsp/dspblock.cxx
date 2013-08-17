@@ -25,6 +25,9 @@
 #include <string>
 #include <algorithm>
 
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
 #include "debug.h"
 #include "dspblock.h"
 
@@ -93,7 +96,7 @@ uint64_t DspBlock::nsPerFrameAll() const
 	uint64_t total;
 
 	total = nsPerFrameOne();
-	LOG_DEBUG("%s:%s %lu ns/frame\n", type().c_str(), name().c_str(), total);
+	LOG_DEBUG("%s:%s %" PRIu64 " ns/frame\n", type().c_str(), name().c_str(), total);
 	for (vector<DspBlock*>::const_iterator it = consumers.begin(); it != consumers.end(); ++it)
 		total += (*it)->nsPerFrameAll();
 	return total;
