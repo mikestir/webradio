@@ -34,7 +34,7 @@
 #include "dspblock.h"
 
 DspData::DspData(const DspData &other) :
-			_data(NULL)
+			_data(NULL), _capacity(0)
 {
 	/* Copy constructor */
 	_type = other.type();
@@ -55,6 +55,7 @@ DspData::DspData(const DspData &other) :
 		break;
 	default:
 		LOG_ERROR("Unsupported data type %d\n", (int)_type);
+		throw;
 	}
 }
 
@@ -97,10 +98,18 @@ void DspData::resize(unsigned int nelements)
 			LOG_ERROR("Unsupported data type %d\n", (int)_type);
 			size = 0;
 		}
-		_data = realloc(_data, nelements * size);
-		_capacity = nelements;
-		LOG_DEBUG("(re)allocated type %d data store for %u elements\n",
-			(int)_type, nelements);
+
+		if (size) {
+			void *temp = realloc(_data, nelements * size);
+			if (temp == NULL) {
+				LOG_ERROR("Out of memory when allocating %u bytes (%u of %u)\n", nelements * size, nelements, size);
+				throw;
+			}
+			_data = temp;
+			_capacity = nelements;
+			LOG_DEBUG("(re)allocated type %d data store for %u elements\n",
+				(int)_type, nelements);
+		}
 	}
 	_size = nelements;
 }
@@ -109,7 +118,7 @@ void DspData::swap(DspData &other)
 {
 	if (other.type() != type()) {
 		LOG_ERROR("Can't swap buffers of differing type\n");
-		return;
+		throw;
 	}
 
 	void *otherdata = other._data;
