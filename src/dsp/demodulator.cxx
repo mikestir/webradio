@@ -33,7 +33,7 @@
 Demodulator::Demodulator(const string &name) :
 	DspBlock(
 		DspData::Float, DspData::Float,
-		name, "AMDemod"),
+		name, "Demodulator"),
 	_mode(AM),
 	prev_i(0.0), prev_q(0.0)
 {

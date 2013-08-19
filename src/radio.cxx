@@ -49,8 +49,10 @@ namespace Radio {
 	}
 
 	void profile() {
-		for (map<string, FrontEnd*>::iterator it = g_frontEnds.begin(); it != g_frontEnds.end(); ++it)
-			it->second->tuner()->nsPerFrameAll();
+		for (map<string, FrontEnd*>::iterator it = g_frontEnds.begin(); it != g_frontEnds.end(); ++it) {
+			float busyms = (float)it->second->tuner()->nsPerSecond() / 1000000.0;
+			LOG_DEBUG("Front end %s busy %f ms/s\n", it->second->uuid().c_str(), busyms);
+		}
 	}
 
 	void run() {
@@ -75,10 +77,11 @@ Receiver::Receiver()
 	_demodulator->connect(_audioFilter);
 	_audioFilter->connect(_stream);
 
-	_channelFilter->setPassband(80000);
-	_channelFilter->setOutputSampleRate(240000);
-	_audioFilter->setPassband(8000);
-	_audioFilter->setOutputSampleRate(48000);
+	_downconverter->setOutputSampleRate(32000);
+	_channelFilter->setPassband(10000);
+	_channelFilter->setOutputSampleRate(32000);
+	_audioFilter->setPassband(4000);
+	_audioFilter->setOutputSampleRate(16000);
 	_demodulator->setMode(Demodulator::AM);
 	_stream->setSubdevice(_uuid);
 

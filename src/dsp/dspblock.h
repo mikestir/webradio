@@ -101,8 +101,7 @@ public:
 	unsigned int decimation() const { return _decimation; }
 	unsigned int interpolation() const { return _interpolation; }
 #ifdef DSPBLOCK_PROFILE
-	uint64_t nsPerFrameAll() const;
-	uint64_t nsPerFrameOne() const { return _totalNanoseconds / _totalIn; }
+	uint64_t nsPerSecond() const; // number of busy ns per real second
 	uint64_t totalNanoseconds() const { return _totalNanoseconds; }
 	unsigned int totalIn() const { return _totalIn; }
 	unsigned int totalOut() const { return _totalOut; }

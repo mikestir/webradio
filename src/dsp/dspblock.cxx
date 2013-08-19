@@ -207,15 +207,21 @@ void DspBlock::disconnect(DspBlock *block)
 }
 
 #ifdef DSPBLOCK_PROFILE
-uint64_t DspBlock::nsPerFrameAll() const
+uint64_t DspBlock::nsPerSecond() const
 {
-	uint64_t total;
+	uint64_t nsperframe = _totalNanoseconds / _totalIn;
+	uint64_t nspersecond = nsperframe * _inputSampleRate;
 
-	total = nsPerFrameOne();
-	LOG_DEBUG("%s:%s %" PRIu64 " ns/frame\n", blockType().c_str(), name().c_str(), total);
+	LOG_DEBUG("%s:%s %" PRIu64 " ns/frame (%u Hz) %f ms/s\n",
+			blockType().c_str(), name().c_str(),
+			nsperframe,
+			_inputSampleRate,
+			(float)nspersecond / 1000000.0);
+
+	/* Cascade to connected blocks */
 	for (vector<DspBlock*>::const_iterator it = consumers.begin(); it != consumers.end(); ++it)
-		total += (*it)->nsPerFrameAll();
-	return total;
+		nspersecond += (*it)->nsPerSecond();
+	return nspersecond;
 }
 #endif
 

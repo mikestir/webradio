@@ -24,6 +24,7 @@ webradio_SOURCES = main.cxx \
 	web/mp3encoder.cxx \
 	io/ioblock.cxx \
 	io/randsource.cxx \
+	io/testsource.cxx \
 	io/pulseaudio.cxx \
 	io/rtlsdrtuner.cxx \
 	io/spectrumsink.cxx \

@@ -27,6 +27,8 @@
 #include <vector>
 #include <string>
 
+#include <stdint.h>
+
 #include "dspblock.h"
 #include "lowpass.h"
 
@@ -40,6 +42,8 @@ public:
 
 	int IF() const { return _if; }
 	void setIF(int hz);
+	void setDecimation(unsigned int n);
+	void setOutputSampleRate(unsigned int hz);
 
 private:
 	bool init();
@@ -49,8 +53,16 @@ private:
 	int				_if;
 
 	// NCO
-	vector<float>	sinTable;
+	vector<int32_t>	sinTable;
 	unsigned int	phase;
 	int				phaseStep;
+
+	// CIC
+	vector<int64_t>	integrator;
+	vector<int64_t>	comb;
+	vector<int64_t>	combdelay;
+
+	unsigned int	_reqDecimation;
+	unsigned int	_reqOutputRate;
 };
 #endif /* FILTER_H_ */
