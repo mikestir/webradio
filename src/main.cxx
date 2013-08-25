@@ -73,11 +73,10 @@ int main(int argc, char **argv)
 	fe->tuner()->setSubdevice(tunerid);
 	fe->tuner()->setCentreFrequency(124325000);
 	fe->tuner()->setSampleRate(2400000);
-	fe->tuner()->setBlockSize(225000);
+	fe->tuner()->setBlockSize(204800);
 	//fe->tuner()->setGainDB(50);
 	fe->tuner()->setAGC(true);
-	//fe->tuner()->setOffsetPPM(25);
-	fe->tuner()->setOffsetPPM(-86);
+	fe->tuner()->setOffsetPPM(0);
 
 	Receiver *rx = new Receiver();
 	rx->setFrontEnd(fe);

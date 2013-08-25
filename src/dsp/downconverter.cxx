@@ -51,6 +51,7 @@ DownConverter::DownConverter(const string &name) :
 			name, "DownConverter"),
 	_if(0),
 	phase(0), phaseStep(0),
+	decCount(0),
 	integrator(CIC_ORDER * 2), comb(CIC_ORDER * 2), combdelay(CIC_ORDER * 2),
 	_reqDecimation(0),
 	_reqOutputRate(DEFAULT_SAMPLE_RATE)
@@ -147,16 +148,13 @@ void DownConverter::deinit()
 
 bool DownConverter::process(const DspData &in, DspData &out)
 {
-	// FIXME: This needs to persist across blocks so that decimation
-	// ratio doesn't need to have an integer relationship to the
-	// input block size, but that may mean the output size is dynamic
-	unsigned int dec = 0;
-
-	out.resize(in.size() / decimation());
+	/* Reserve maximum output size */
+	out.resize((in.size() + decimation() - 1) / decimation());
 	
 	const short *inptr = (const short*)in.data();
 	float *outptr = (float*)out.data();
 	int64_t scale = (int64_t)pow(decimation(), CIC_ORDER);
+	int nout = 0;
 
 	for (unsigned int n = 0; n < in.size() / 2; n++) {
 		/* NCO */
@@ -176,8 +174,8 @@ bool DownConverter::process(const DspData &in, DspData &out)
 		for (unsigned int m = 2; m < 2 * CIC_ORDER; m++)
 			integrator[m] += integrator[m - 2];
 
-		if (++dec == decimation()) {
-			dec = 0;
+		if (++decCount == decimation()) {
+			decCount = 0;
 
 			/* Comb */
 			comb[0] = integrator[2 * CIC_ORDER - 2] - combdelay[0];
@@ -191,9 +189,12 @@ bool DownConverter::process(const DspData &in, DspData &out)
 			/* Output converted to float */
 			*outptr++ = (float)(comb[2 * CIC_ORDER - 2] / scale) / 32768.0;
 			*outptr++ = (float)(comb[2 * CIC_ORDER - 1] / scale) / 32768.0;
+			nout++;
 		}
 	}
 
+	/* Resize to actual number of output elements */
+	out.resize(nout * 2);
 	return true;
 }
 

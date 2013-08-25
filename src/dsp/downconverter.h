@@ -58,6 +58,7 @@ private:
 	int				phaseStep;
 
 	// CIC
+	unsigned int	decCount;
 	vector<int64_t>	integrator;
 	vector<int64_t>	comb;
 	vector<int64_t>	combdelay;

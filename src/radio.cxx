@@ -77,11 +77,11 @@ Receiver::Receiver()
 	_demodulator->connect(_audioFilter);
 	_audioFilter->connect(_stream);
 
-	_downconverter->setOutputSampleRate(32000);
-	_channelFilter->setPassband(10000);
-	_channelFilter->setOutputSampleRate(32000);
+	_downconverter->setOutputSampleRate(240000);
+	_channelFilter->setPassband(25000);
+	_channelFilter->setOutputSampleRate(48000);
 	_audioFilter->setPassband(4000);
-	_audioFilter->setOutputSampleRate(16000);
+	_audioFilter->setOutputSampleRate(8000);
 	_demodulator->setMode(Demodulator::AM);
 	_stream->setSubdevice(_uuid);
 

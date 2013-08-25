@@ -96,14 +96,15 @@
 //		$("#rxtabs").tabs();
 
 		$("#rx0ifbandwidth").slider({
-			min: 200,
-			max: 200000,
-			step: 200,
+			min: 1000,
+			max: 250000,
+			step: 1000,
 			animate: true,
 			orientation: "horizontal",
 			slide: function() {
 				var bandwidth = $("#rx0ifbandwidth").slider("value");
 				console.debug("new bandwidth" + bandwidth + " Hz");
+				$("#rx0ifbandwidthtext").text(bandwidth / 1000.0 + " kHz");
 				
 				$.ajax({
 					url: '../receivers/0000',
@@ -119,6 +120,18 @@
 			step: 1000,
 			animate: true,
 			orientation: "horizontal",
+			slide: function() {
+				var bandwidth = $("#rx0afbandwidth").slider("value");
+				console.debug("new bandwidth" + bandwidth + " Hz");
+				$("#rx0afbandwidthtext").text(bandwidth / 1000.0 + " kHz");				
+				
+				$.ajax({
+					url: '../receivers/0000',
+					type: 'PUT',
+					contentType: 'application/json',
+					data: ' { "af_bandwidth": ' + bandwidth + ' }'		
+				});
+			}			
 			});
 		$("#rx0squelch").slider({
 			min: -100,
@@ -245,7 +258,9 @@
 					$("#rx0modulationLSB").click();
 				}
 				$("#rx0ifbandwidth").slider("value", info['if_bandwidth']);
+				$("#rx0ifbandwidthtext").text(info['if_bandwidth'] / 1000.0 + " kHz");
 				$("#rx0afbandwidth").slider("value", info['af_bandwidth']);
+				$("#rx0afbandwidthtext").text(info['af_bandwidth'] / 1000.0 + " kHz");
 				$("#rx0squelch").slider("value", info['squelch_threshold']);
 			}
 			});			
@@ -327,9 +342,9 @@
 					<input type="radio" id="rx0modulationLSB" name="rx0modulation" value="LSB" class="control"/><label for="rx0modulationLSB">LSB</label>
 					<input type="radio" id="rx0modulationUSB" name="rx0modulation" value="USB" class="control"/><label for="rx0modulationUSB">USB</label>
 				</div>				
-				<span class="control">IF Bandwidth:</span>
+				<span class="control">IF Bandwidth:</span><span id="rx0ifbandwidthtext"></span>
 				<div id="rx0ifbandwidth" class="control"></div>
-				<span class="control">AF Bandwidth:</span>
+				<span class="control">AF Bandwidth:</span><span id="rx0afbandwidthtext"></span>
 				<div id="rx0afbandwidth" class="control"></div>
 				<span class="control">Squelch:</span>
 				<div id="rx0squelch" class="control"></div>
