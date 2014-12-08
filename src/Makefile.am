@@ -31,7 +31,7 @@ webradio_SOURCES = main.cxx \
 	dsp/downconverter.cxx \
 	dsp/demodulator.cxx
 
-webradio_LDADD = -lm -lmp3lame \
+webradio_LDADD = -lm -lmp3lame -lpthread \
 	$(libmicrohttpd_LIBS) \
 	$(libfftw3_LIBS) \
 	$(librtlsdr_LIBS) \
