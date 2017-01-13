@@ -3,6 +3,8 @@ AC_INIT([webradio], [0.1], [webradio@mikestirling.co.uk], [webradio], [http://mi
 AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_SRCDIR([src/main.cxx])
 
+CXXFLAGS="$CXXFLAGS -std=c++11"
+
 AM_INIT_AUTOMAKE
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
